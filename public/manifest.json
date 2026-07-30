@@ -1,0 +1,17 @@
+{
+  "name": "My OS",
+  "short_name": "My OS",
+  "description": "Personal life-management: capture tasks and projects instantly.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111318",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
