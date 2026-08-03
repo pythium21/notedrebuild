@@ -2,8 +2,8 @@
 // decision (see .claude/DECISIONS.md once populated). This only lets the
 // installed PWA repaint instantly while the network round-trips.
 
-const CACHE_NAME = 'my-os-shell-v1';
-const SHELL_ASSETS = ['/', '/manifest.json', '/icon.svg'];
+const CACHE_NAME = 'my-os-shell-v2';
+const SHELL_ASSETS = ['/', '/manifest.json', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

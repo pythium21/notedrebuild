@@ -57,3 +57,38 @@ create policy "tasks_update_own" on public.tasks
 
 create policy "tasks_delete_own" on public.tasks
   for delete using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- saves
+--
+-- Pre-existing table, carried over from the old NOTED Supabase project
+-- (DECISIONS.md D-003). `if not exists` here is a no-op against the live
+-- project — this statement documents the live shape for anyone standing the
+-- schema up fresh, it doesn't create anything new against production.
+-- Columns confirmed live via PostgREST probing; see SCHEMA.md's saves section
+-- for what was actually verified vs. assumed.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.saves (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  url text not null,
+  title text not null,
+  platform text not null default 'Websites',
+  date date
+);
+
+alter table public.saves enable row level security;
+
+create policy "saves_select_own" on public.saves
+  for select using (user_id = auth.uid());
+
+create policy "saves_insert_own" on public.saves
+  for insert with check (user_id = auth.uid());
+
+create policy "saves_update_own" on public.saves
+  for update using (user_id = auth.uid());
+
+create policy "saves_delete_own" on public.saves
+  for delete using (user_id = auth.uid());
