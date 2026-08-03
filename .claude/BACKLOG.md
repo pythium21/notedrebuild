@@ -5,6 +5,7 @@ All open work. **Active** is flat-ranked by priority (top = next). **Horizon** i
 ## Active
 
 1. Create the Supabase project, apply `supabase/schema.sql`, wire up real env vars, deploy to Railway, install as a PWA on a phone — use it for a week before touching anything below.
+2. Custom SMTP for auth emails (Resend, sender on dilan.au) — Supabase's built-in mailer is capped at ~2-4 emails/hr on ALL plans including Pro; hit the limit during initial deploy. Until fixed: use dashboard "Generate link" (Auth → Users) if throttled. Needs: Resend account, SPF/DKIM records on dilan.au DNS, SMTP creds into Supabase Auth → Emails, then raise the email rate limit (unlocks once custom SMTP set).
 
 ## Horizon
 
