@@ -17,6 +17,7 @@ export default function ProjectsPage() {
   const [name, setName] = useState('');
   const [steps, setSteps] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     listProjects()
@@ -27,8 +28,9 @@ export default function ProjectsPage() {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isAdding) return;
     setError(null);
+    setIsAdding(true);
     try {
       const project = await createProject({ name: name.trim(), steps: steps.trim() });
       setProjects((prev) => [project, ...prev]);
@@ -36,6 +38,8 @@ export default function ProjectsPage() {
       setSteps('');
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setIsAdding(false);
     }
   }
 
@@ -68,8 +72,8 @@ export default function ProjectsPage() {
           value={steps}
           onChange={(e) => setSteps(e.target.value)}
         />
-        <button type="submit" className="add-form__submit">
-          Add
+        <button type="submit" className="add-form__submit" disabled={isAdding}>
+          {isAdding ? 'Adding…' : 'Add'}
         </button>
       </form>
 

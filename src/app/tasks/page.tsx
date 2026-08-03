@@ -10,6 +10,7 @@ export default function TasksPage() {
   const [tag, setTag] = useState('');
   const [date, setDate] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     listTasks()
@@ -20,8 +21,9 @@ export default function TasksPage() {
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isAdding) return;
     setError(null);
+    setIsAdding(true);
     try {
       const task = await createTask({ name: name.trim(), tag: tag.trim(), date: date || null });
       setTasks((prev) => [task, ...prev]);
@@ -30,6 +32,8 @@ export default function TasksPage() {
       setDate('');
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setIsAdding(false);
     }
   }
 
@@ -64,8 +68,8 @@ export default function TasksPage() {
           onChange={(e) => setTag(e.target.value)}
         />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button type="submit" className="add-form__submit">
-          Add
+        <button type="submit" className="add-form__submit" disabled={isAdding}>
+          {isAdding ? 'Adding…' : 'Add'}
         </button>
       </form>
 
