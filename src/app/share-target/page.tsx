@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createSave } from '@/lib/saves';
 
 const URL_PATTERN = /https?:\/\/\S+/i;
 
@@ -34,8 +33,16 @@ function ShareTargetInner() {
       return;
     }
 
-    createSave({ url: sharedUrl, title: title || undefined })
-      .then((save) => setStatus({ kind: 'done', message: `Saved to ${save.platform} ✓` }))
+    fetch('/api/share-target', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: sharedUrl, title: title || undefined }),
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'Save failed');
+        setStatus({ kind: 'done', message: `Saved to ${body.platform} ✓` });
+      })
       .catch((e) => setStatus({ kind: 'error', message: (e as Error).message }));
   }, [searchParams]);
 
