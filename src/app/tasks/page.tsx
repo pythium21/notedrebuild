@@ -1,7 +1,27 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { createTask, listTasks, setTaskDone, type Task } from '@/lib/tasks';
+import {
+  createTask,
+  deleteTask,
+  listTasks,
+  setTaskDone,
+  updateTask,
+  type Task,
+} from '@/lib/tasks';
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -11,6 +31,13 @@ export default function TasksPage() {
   const [date, setDate] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editTag, setEditTag] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     listTasks()
@@ -48,6 +75,52 @@ export default function TasksPage() {
     }
   }
 
+  function handleEditStart(task: Task) {
+    setEditingId(task.id);
+    setEditName(task.name);
+    setEditTag(task.tag || '');
+    setEditDate(task.date || '');
+  }
+
+  function handleEditCancel() {
+    setEditingId(null);
+  }
+
+  async function handleEditSave(e: FormEvent, task: Task) {
+    e.preventDefault();
+    if (!editName.trim() || isSaving) return;
+    setError(null);
+    setIsSaving(true);
+    try {
+      const updated = await updateTask(task.id, {
+        name: editName.trim(),
+        tag: editTag.trim(),
+        date: editDate || null,
+      });
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setEditingId(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(task: Task) {
+    if (deletingId) return;
+    if (!window.confirm(`Delete "${task.name}"?`)) return;
+    setError(null);
+    setDeletingId(task.id);
+    try {
+      await deleteTask(task.id);
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div>
       <h1 className="page-title">Tasks</h1>
@@ -79,14 +152,72 @@ export default function TasksPage() {
         <p className="list-empty">No tasks yet — add one above.</p>
       ) : (
         <div className="list">
-          {tasks.map((task) => (
-            <label key={task.id} className={`item${task.done ? ' is-done' : ''}`}>
-              <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
-              <span className="item__name">{task.name}</span>
-              {task.tag && <span className="item__tag">{task.tag}</span>}
-              {task.date && <span className="item__date">{task.date}</span>}
-            </label>
-          ))}
+          {tasks.map((task) =>
+            editingId === task.id ? (
+              <form
+                key={task.id}
+                className="item item-edit-form"
+                onSubmit={(e) => handleEditSave(e, task)}
+              >
+                <input
+                  type="text"
+                  className="item-edit-form__name"
+                  autoFocus
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Tag (optional)"
+                  value={editTag}
+                  onChange={(e) => setEditTag(e.target.value)}
+                />
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                />
+                <button type="submit" className="item-edit-form__save" disabled={isSaving}>
+                  {isSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  className="item-edit-form__cancel"
+                  onClick={handleEditCancel}
+                  disabled={isSaving}
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div key={task.id} className={`item${task.done ? ' is-done' : ''}`}>
+                <label className="item__main">
+                  <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
+                  <span className="item__name">{task.name}</span>
+                  {task.tag && <span className="item__tag">{task.tag}</span>}
+                  {task.date && <span className="item__date">{task.date}</span>}
+                  <span className="item__created">{formatRelativeTime(task.created_at)}</span>
+                </label>
+                <div className="item__actions">
+                  <button
+                    type="button"
+                    className="item__action"
+                    onClick={() => handleEditStart(task)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="item__action item__action--danger"
+                    onClick={() => handleDelete(task)}
+                    disabled={deletingId === task.id}
+                  >
+                    {deletingId === task.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
     </div>

@@ -29,6 +29,10 @@ What currently exists in the running deployment. This file describes the present
 - **PWA**: `public/manifest.json` + `public/sw.js` (app-shell caching only, no offline write queue). `sw.js` serves the navigable HTML document network-first with a cache fallback for offline use, and the static shell assets (manifest, icons) cache-first — see MISTAKES.md for the stale-shell bug this replaced. Web Share Target wired (`share_target` in the manifest → `/share-target`). Installable to an Android home screen; icons are placeholders — `public/icon.svg` plus generated `public/icon-192.png` / `public/icon-512.png` (same blue rounded-square "OS" mark, added so `share_target`/maskable-icon requirements are met) — swap all three for real artwork before shipping.
 - Not implemented: everything not listed above. See BACKLOG.md.
 
+## Tasks
+
+- Edit, delete, and created_at display shipped (Aug 2026). Edit uses inline row-to-form toggle (no bottom sheet — no such pattern existed yet elsewhere in the codebase; see D-010 reasoning for the same logic applied to delete). Delete uses window.confirm() per D-010. Client-side Supabase + RLS, same pattern as createTask/setTaskDone — no getSupabaseService() used, since that's reserved for the share-target route's no-session context (D-009).
+
 ## Share Target
 
 - Confirmed working end-to-end (Aug 2026): shared a LinkedIn URL via Android share sheet → landed correctly in Save Manager, auto-detected as LinkedIn. Closes out the "verify live share-sheet round trip" backlog item — `SUPABASE_SERVICE_ROLE_KEY` and `NOTED_USER_ID` env vars confirmed working in Railway.

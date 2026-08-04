@@ -8,6 +8,14 @@ All open work. **Active** is flat-ranked by priority (top = next). **Horizon** i
 2. Verify `saves` table constraints against the live Supabase dashboard (NOT NULL / CHECK on `platform`, `title`) — only column existence was confirmed via anon-key PostgREST probing when the `/saves` route was built (DECISIONS.md D-003); RLS blocked every insert attempt before a constraint violation could surface, so those details are currently assumed to match the tasks/projects convention rather than confirmed.
 3. Fix `manifest.json`'s `share_target` enctype — browser console warns it defaults to `application/x-www-form-urlencoded`; verify the `/share-target` route's expected content type and set `enctype` explicitly, then reinstall the PWA to pick up the manifest change.
 
+## Tasks
+
+P1 — capture-flow gaps found in daily use:
+
+- [x] Edit an existing task (currently entry-only, no edit form) — done 2026-08-04
+- [x] Delete a task from the UI (currently requires direct DB access) — done 2026-08-04
+- [x] Display created_at on each task in the list view — done 2026-08-04
+
 ## Save Manager
 
 P2:

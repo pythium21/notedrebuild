@@ -46,3 +46,26 @@ export async function setTaskDone(id: string, done: boolean): Promise<void> {
   const { error } = await supabase.from('tasks').update({ done }).eq('id', id);
   if (error) throw error;
 }
+
+export async function updateTask(
+  id: string,
+  input: { name: string; tag?: string | null; date?: string | null }
+): Promise<Task> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      name: input.name,
+      tag: input.tag || null,
+      date: input.date || null,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Task;
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const { error } = await supabase.from('tasks').delete().eq('id', id);
+  if (error) throw error;
+}
