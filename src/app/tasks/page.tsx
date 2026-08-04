@@ -152,6 +152,13 @@ export default function TasksPage() {
         <p className="list-empty">No tasks yet — add one above.</p>
       ) : (
         <div className="list">
+          <div className="task-grid-header" aria-hidden="true">
+            <span>Task</span>
+            <span>Tag</span>
+            <span>Date</span>
+            <span>Created</span>
+            <span>Actions</span>
+          </div>
           {tasks.map((task) =>
             editingId === task.id ? (
               <form
@@ -190,14 +197,18 @@ export default function TasksPage() {
                 </button>
               </form>
             ) : (
-              <div key={task.id} className={`item${task.done ? ' is-done' : ''}`}>
+              <div key={task.id} className={`item item--task${task.done ? ' is-done' : ''}`}>
                 <label className="item__main">
                   <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
                   <span className="item__name">{task.name}</span>
-                  {task.tag && <span className="item__tag">{task.tag}</span>}
-                  {task.date && <span className="item__date">{task.date}</span>}
-                  <span className="item__created">{formatRelativeTime(task.created_at)}</span>
                 </label>
+                <div className="item__meta">
+                  <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
+                    {task.tag || '–'}
+                  </span>
+                  <span className="item__date">{task.date || '–'}</span>
+                  <span className="item__created">{formatRelativeTime(task.created_at)}</span>
+                </div>
                 <div className="item__actions">
                   <button
                     type="button"

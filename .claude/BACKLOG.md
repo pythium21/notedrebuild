@@ -22,6 +22,10 @@ P2:
 
 - [ ] Fix URL overflow in list view — long URLs (e.g. LinkedIn URNs) run off-screen instead of truncating. Options: CSS ellipsis/truncate (cheap), fetch og:title at save time and display that instead (nicer, more work), or show domain + truncated path as a middle ground.
 
+## Projects
+
+- [ ] OPEN QUESTION: Projects currently only supports create (title + optional steps string + status dropdown). No detail view — steps typed at creation never surface again, can't be checked off, edited, or added to after creation. Need to decide: does tapping a project open a detail page with an editable steps/checklist, expand inline, or something else? Decide before building further. Flagged Aug 2026.
+
 ## Horizon
 
 - Notes/Pages editor with Notion-style sub-page nesting (reference implementation parked in the old repo's `reference/nextjs-subpages/` — TypeScript/React, not yet wired into anything)

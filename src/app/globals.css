@@ -347,6 +347,97 @@ a {
   color: var(--text-muted);
 }
 
+/* ---- Tasks list (grid columns, reusable for other column-style lists) ---- */
+
+.task-grid-header {
+  display: none;
+}
+
+.item.item--task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'task actions'
+    'meta meta';
+  gap: 0.4rem 0.5rem;
+  align-items: start;
+}
+
+.item--task .item__main {
+  grid-area: task;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.item--task .item__main input[type='checkbox'] {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.item--task .item__meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.item--task .item__actions {
+  grid-area: actions;
+  align-self: start;
+}
+
+.item__tag--empty {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.15rem 0;
+}
+
+@media (min-width: 600px) {
+  .task-grid-header,
+  .item.item--task {
+    grid-template-columns: minmax(0, 1fr) 5.5rem 5.5rem 4.5rem 8.5rem;
+    grid-template-areas: 'task tag date created actions';
+  }
+
+  .task-grid-header {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0 0.9rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .item--task {
+    align-items: center;
+  }
+
+  .item--task .item__main {
+    align-items: center;
+  }
+
+  .item--task .item__meta {
+    display: contents;
+  }
+
+  .item--task .item__tag {
+    grid-area: tag;
+  }
+
+  .item--task .item__date {
+    grid-area: date;
+  }
+
+  .item--task .item__created {
+    grid-area: created;
+  }
+}
+
 .item__tag {
   font-size: 0.75rem;
   color: var(--text-muted);
