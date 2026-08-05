@@ -6,6 +6,27 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-012 · Projects gain outcome, notes, and saves attachment (supersedes checklist-only model from D-010/D-011) (2026-08-05)
+
+**Context:** D-010/D-011 shipped Projects as a card-grid + action-tracker (name, status, priority, due_date, tags, description, parent_id, direct actions, child projects, computed progress %). Real usage immediately surfaced a gap: a project like "Home Renovation" needs to hold reference information (fence measurements), track what success actually looks like (not just % complete), and attach externally-shared content (a Colorbond fencing product link shared via the PWA share target) — none of which "just add an action" supports. Additionally, the Pages/Notes feature this relies on was designed prior to the Next.js rebuild but never actually implemented in the current repo, so this decision also covers building it from scratch.
+
+**Decision:**
+
+1. **Outcome field.** `projects.outcome` (text, nullable) — free-form one-to-two-sentence description of what success looks like for the project. Distinct from and additive to the existing `description` field: `description` = what the project is about, `outcome` = the target being worked toward. Progress % computation is UNCHANGED — still `completed / total actions`, rolled up recursively through child projects. Outcome is descriptive context, not a computation input.
+
+2. **Notes via linked Page (on-demand, not eager; full block editor).** `projects.page_id` (uuid, nullable, FK → `pages.id`, on delete set null). No page is created automatically at project-creation time. The project detail page shows an "Add notes" affordance when `page_id` is null; tapping it creates a new row in the `pages` table and sets `page_id` on the project. The Pages feature itself is a full block-based editor (not a plain textarea) — blocks stored as a jsonb array on `content`, 800ms debounced writes, hierarchical via `parent_id` (on delete restrict), responsive (bottom sheet + hamburger drawer under 768px, sidebar + slash command at desktop widths). Built from scratch this round since it predates the Next.js rebuild and was never carried over.
+
+3. **Saves attachment via join table.** New table `project_saves`: `id` (uuid), `project_id` (uuid, required, FK → projects, on delete cascade), `save_id` (uuid, required, FK → saves, on delete cascade), `action_id` (uuid, nullable, FK → actions, on delete set null), `created_at`. A save can be linked at the project level (`action_id` null) or scoped down to one specific action within the project (`action_id` set) — the action-level link implies project membership too, no ambiguity, no duplicate row needed.
+   - `saves` table itself is untouched — no `project_id` added directly. A save can exist unlinked, or link to multiple projects/actions over time via this join table.
+   - Sharing flow is unchanged: content shared via the PWA share target always lands in Save Manager first, full stop. There is no project-picker at share-time.
+   - Linking happens after the fact, from either direction: from Save Manager, pick a project (and optionally an action) for an existing save; from a project or action detail view, pick an existing save to attach. Both entry points write to the same `project_saves` join table — one mechanism, two doorways.
+
+4. **Card grid surfaces outcome.** The Projects card-grid view gains `outcome` as a visible field (alongside existing name, status, priority, progress). Notes (linked page) and attached saves are NOT shown on the grid or in the quick-add action flow — both only surface once you tap into the project or action detail view, keeping the fast-capture flows exactly as lean as before.
+
+**Rationale:** Keeps three genuinely different concerns cleanly separated using patterns already proven elsewhere in the app — Pages for rich content (matches existing parent_id/hierarchy pattern from prior design work), a join table for saves (matches the many-to-many reality that one save could relate to zero, one, or several projects), and a plain text field for outcome (no need to over-engineer a target/success schema when free text does the job). Nothing about the existing D-010/D-011 action-tracking or progress-rollup model changes — this is additive, not a rebuild.
+
+**Status:** Active.
+
 ## D-011 · Projects gain a child `actions` entity; Tasks stay fully independent (2026-08-05)
 
 **Context:** BACKLOG.md's Projects section had an open question since Aug 2026: creation-only Projects had no detail view, and steps typed at creation never surfaced again. Planning session resolved this by designing a Projects/Actions architecture rather than bolting a checklist field onto `projects`.

@@ -34,12 +34,32 @@ Architecture decided 2026-08-05 (DECISIONS.md D-011) — resolves the prior "no 
 - [x] Task completion prompts (`window.confirm`) to also complete a linked action
 - [x] Mark-project-done allows open actions, shows soft warning instead of blocking
 - [x] Today view (`/`, home screen): flagged_today actions + tasks, grouped by project for actions; completing clears the flag
-- [ ] Manually verify the above in a live, signed-in browser session — only `npm run build` (TypeScript clean) and an unauthenticated dev-server smoke test have been done so far; the agent environment has no way to complete magic-link auth. See STATUS.md's Known gaps.
+
+Outcome/notes/saves attachment decided 2026-08-05 (DECISIONS.md D-012) — built 2026-08-05:
+
+- [x] `projects.outcome` + `projects.page_id` columns, `pages` table, `project_saves` join table — applied manually in Supabase. See SCHEMA.md / `supabase/schema.sql`.
+- [x] `outcome` inline-editable on project detail; shown on the card grid alongside name/status/priority/progress (placeholder when null)
+- [x] "Add notes" affordance on project detail → creates a `pages` row, sets `page_id`, navigates into the editor; existing linked page shown as a link instead
+- [x] "Attached saves" section on project detail (`project_id` set, `action_id` null) with an attach-a-save picker
+- [x] Per-action expand/detail view on project detail (▸/▾ toggle) showing saves attached to that specific action, with its own attach-a-save picker
+- [x] Save Manager "Link to project" action per save → project picker → optional action picker, writing to the same `project_saves` table
+- [ ] Manually verify all of the above (Projects/Actions/Today AND the new outcome/notes/saves flows) in a live, signed-in browser session — only `npm run build` (TypeScript clean) and unauthenticated dev-server smoke tests have been done so far; the agent environment has no way to complete magic-link auth. See STATUS.md's Known gaps.
+
+## Pages / Notes
+
+Designed pre-rebuild, built from scratch 2026-08-05 (DECISIONS.md D-012) — see STATUS.md for the block-type list and other implementation assumptions made along the way.
+
+- [x] `pages` table (title/emoji/parent_id/content jsonb/created_at/updated_at) — applied manually in Supabase.
+- [x] `src/lib/pages.ts` — CRUD, `deletePage()` pre-checks for children and throws a clear error instead of letting the FK restrict fail silently.
+- [x] Block editor (`src/components/pages/PageEditor.tsx`): text/heading/checklist/bullet/page_link blocks, 800ms-debounced autosave, flush-before-write ordering guard for sub-page creation.
+- [x] Hierarchy nav (`src/components/pages/PagesShell.tsx`): persistent sidebar ≥768px, hamburger drawer <768px; recursive tree.
+- [x] Slash-command / bottom-sheet block-type menu (`src/components/pages/BlockMenu.tsx`) — same markup, breakpoint-only CSS switch between inline dropdown and bottom sheet.
+- [x] Routes `/pages` and `/pages/[id]`; nav item added to `NavShell`.
+- [ ] Manually verify in a live, signed-in browser session — entirely untested end-to-end (auth sandbox limitation). See STATUS.md's Known gaps.
 
 ## Horizon
 
 - Supabase MCP connector — enables pushing progress notes/updates into My OS directly from Claude chat sessions, without needing Claude Code open.
-- Notes/Pages editor with Notion-style sub-page nesting (reference implementation parked in the old repo's `reference/nextjs-subpages/` — TypeScript/React, not yet wired into anything)
 - The remaining ~10 routes from the old repo: Health & Fitness, Expense Tracker, Goals, Habits, Journal, Content HQ, Contacts, Resources, Vault, Dashboard
 - Saves: list/grid toggle, platform filters (the minimal `/saves` route itself is now built, see STATUS.md)
 - Offline write queue (blocked pending a decision entry — see the "pending the offline-queue ruling" note carried over in the old repo's SCHEMA.md)

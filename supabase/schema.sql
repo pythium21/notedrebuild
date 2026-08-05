@@ -146,3 +146,71 @@ alter table public.projects add column if not exists due_date date;
 alter table public.projects add column if not exists tags text[];
 
 alter table public.tasks add column if not exists flagged_today boolean not null default false;
+
+-- ---------------------------------------------------------------------------
+-- pages, project_saves, projects.outcome/page_id (DECISIONS.md D-012)
+--
+-- Applied live 2026-08-05 (confirmed by user). Ran directly in the Supabase
+-- SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule — this block
+-- documents what was applied, it wasn't executed by Claude Code.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default 'Untitled',
+  emoji text,
+  parent_id uuid references public.pages(id) on delete restrict,
+  content jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.pages enable row level security;
+
+create policy "pages_select_own" on public.pages
+  for select using (user_id = auth.uid());
+
+create policy "pages_insert_own" on public.pages
+  for insert with check (user_id = auth.uid());
+
+create policy "pages_update_own" on public.pages
+  for update using (user_id = auth.uid());
+
+create policy "pages_delete_own" on public.pages
+  for delete using (user_id = auth.uid());
+
+alter table public.projects add column if not exists outcome text;
+alter table public.projects add column if not exists page_id uuid references public.pages(id) on delete set null;
+
+create table if not exists public.project_saves (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  save_id uuid not null references public.saves(id) on delete cascade,
+  action_id uuid references public.actions(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.project_saves enable row level security;
+
+-- No user_id column on this table — ownership is enforced transitively
+-- through project_id's FK to projects, whose RLS already scopes by user_id.
+create policy "project_saves_select_own" on public.project_saves
+  for select using (
+    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+  );
+
+create policy "project_saves_insert_own" on public.project_saves
+  for insert with check (
+    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+  );
+
+create policy "project_saves_update_own" on public.project_saves
+  for update using (
+    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+  );
+
+create policy "project_saves_delete_own" on public.project_saves
+  for delete using (
+    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+  );

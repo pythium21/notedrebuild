@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   convertActionToTask,
@@ -10,6 +11,14 @@ import {
   setActionFlaggedToday,
   type Action,
 } from '@/lib/actions';
+import { createPage, getPage, type Page } from '@/lib/pages';
+import {
+  attachSave,
+  listSavesForAction,
+  listSavesForProject,
+  removeProjectSave,
+  type ProjectSaveWithSave,
+} from '@/lib/projectSaves';
 import {
   computeProjectProgress,
   createProject,
@@ -21,6 +30,8 @@ import {
   type ProjectProgress,
   type ProjectStatus,
 } from '@/lib/projects';
+import { listSaves, type Save } from '@/lib/saves';
+import { Picker } from '@/components/Picker';
 
 const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'done', 'archived'];
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -53,6 +64,7 @@ function sortActions(actions: Action[], sortBy: SortBy): Action[] {
 }
 
 export function ProjectDetailClient({ projectId }: { projectId: string }) {
+  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [childProjects, setChildProjects] = useState<Project[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
@@ -62,6 +74,19 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
 
   const [description, setDescription] = useState('');
   const [tagsText, setTagsText] = useState('');
+  const [outcome, setOutcome] = useState('');
+
+  const [notesPage, setNotesPage] = useState<Page | null>(null);
+  const [isAddingNotes, setIsAddingNotes] = useState(false);
+
+  const [projectSaves, setProjectSaves] = useState<ProjectSaveWithSave[]>([]);
+  const [allSaves, setAllSaves] = useState<Save[]>([]);
+  const [savePickerFor, setSavePickerFor] = useState<{ actionId: string | null } | null>(null);
+  const [attaching, setAttaching] = useState(false);
+
+  const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
+  const [actionSaves, setActionSaves] = useState<Record<string, ProjectSaveWithSave[]>>({});
+  const [loadingActionSaves, setLoadingActionSaves] = useState<string | null>(null);
 
   const [newActionTitle, setNewActionTitle] = useState('');
   const [isAddingAction, setIsAddingAction] = useState(false);
@@ -78,14 +103,29 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   }
 
   useEffect(() => {
-    Promise.all([getProject(projectId), listChildProjects(projectId), listActionsForProject(projectId), computeProjectProgress(projectId)])
-      .then(([p, children, projectActions, prog]) => {
+    Promise.all([
+      getProject(projectId),
+      listChildProjects(projectId),
+      listActionsForProject(projectId),
+      computeProjectProgress(projectId),
+      listSavesForProject(projectId),
+    ])
+      .then(async ([p, children, projectActions, prog, saves]) => {
         setProject(p);
         setChildProjects(children);
         setActions(projectActions);
         setProgress(prog);
         setDescription(p.description || '');
         setTagsText((p.tags || []).join(', '));
+        setOutcome(p.outcome || '');
+        setProjectSaves(saves);
+        if (p.page_id) {
+          try {
+            setNotesPage(await getPage(p.page_id));
+          } catch {
+            // linked page may no longer exist — leave notesPage null, "Add notes" affordance re-shows
+          }
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -125,6 +165,92 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       .map((t) => t.trim())
       .filter(Boolean);
     handleFieldUpdate({ tags: tags.length > 0 ? tags : null });
+  }
+
+  function handleOutcomeBlur() {
+    if (outcome === (project?.outcome || '')) return;
+    handleFieldUpdate({ outcome: outcome || null });
+  }
+
+  async function handleAddNotes() {
+    if (isAddingNotes || !project) return;
+    setIsAddingNotes(true);
+    setError(null);
+    try {
+      const page = await createPage({ title: `${project.name} notes` });
+      await handleFieldUpdate({ page_id: page.id });
+      router.push(`/pages/${page.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setIsAddingNotes(false);
+    }
+  }
+
+  async function openSavePicker(actionId: string | null) {
+    setError(null);
+    try {
+      if (allSaves.length === 0) {
+        setAllSaves(await listSaves());
+      }
+      setSavePickerFor({ actionId });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function handleAttachSave(save: Save) {
+    if (!savePickerFor || attaching) return;
+    const actionId = savePickerFor.actionId;
+    setAttaching(true);
+    setError(null);
+    try {
+      const row = await attachSave({ project_id: projectId, save_id: save.id, action_id: actionId });
+      const withSave: ProjectSaveWithSave = { ...row, save };
+      if (actionId) {
+        setActionSaves((prev) => ({ ...prev, [actionId]: [withSave, ...(prev[actionId] || [])] }));
+      } else {
+        setProjectSaves((prev) => [withSave, ...prev]);
+      }
+      setSavePickerFor(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  async function handleRemoveProjectSave(id: string, actionId: string | null) {
+    setError(null);
+    try {
+      await removeProjectSave(id);
+      if (actionId) {
+        setActionSaves((prev) => ({ ...prev, [actionId]: (prev[actionId] || []).filter((s) => s.id !== id) }));
+      } else {
+        setProjectSaves((prev) => prev.filter((s) => s.id !== id));
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function handleToggleExpand(action: Action) {
+    if (expandedActionId === action.id) {
+      setExpandedActionId(null);
+      return;
+    }
+    setExpandedActionId(action.id);
+    if (!actionSaves[action.id]) {
+      setLoadingActionSaves(action.id);
+      try {
+        const saves = await listSavesForAction(action.id);
+        setActionSaves((prev) => ({ ...prev, [action.id]: saves }));
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setLoadingActionSaves(null);
+      }
+    }
   }
 
   function handleStatusChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -291,6 +417,65 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         />
       </label>
 
+      <label className="project-detail__field project-detail__field--full">
+        <span>Outcome — what does success look like?</span>
+        <textarea
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value)}
+          onBlur={handleOutcomeBlur}
+          rows={2}
+          placeholder="e.g. Fence replaced, matches the Colorbond sample, passes council inspection"
+        />
+      </label>
+
+      <div className="project-detail__section">
+        <h2 className="project-detail__section-title">Notes</h2>
+        {project.page_id ? (
+          notesPage ? (
+            <Link href={`/pages/${notesPage.id}`} className="project-detail__notes-link">
+              {notesPage.emoji ? `${notesPage.emoji} ` : '📝 '}
+              {notesPage.title}
+            </Link>
+          ) : (
+            <p className="list-empty">Linked page could not be loaded.</p>
+          )
+        ) : (
+          <button type="button" className="project-detail__notes-link" onClick={handleAddNotes} disabled={isAddingNotes}>
+            {isAddingNotes ? 'Adding…' : '+ Add notes'}
+          </button>
+        )}
+      </div>
+
+      <div className="project-detail__section">
+        <div className="attached-saves__header">
+          <h2 className="project-detail__section-title">Attached saves</h2>
+          <button type="button" className="item__action" onClick={() => openSavePicker(null)}>
+            + Attach a save
+          </button>
+        </div>
+        {projectSaves.length === 0 ? (
+          <p className="list-empty">No saves attached yet.</p>
+        ) : (
+          <div className="attached-saves">
+            {projectSaves.map((ps) => (
+              <div key={ps.id} className="attached-save">
+                <a href={ps.save.url} target="_blank" rel="noreferrer" className="attached-save__title">
+                  {ps.save.title}
+                </a>
+                <span className="item__tag">{ps.save.platform}</span>
+                <button
+                  type="button"
+                  className="item__action item__action--danger"
+                  onClick={() => handleRemoveProjectSave(ps.id, null)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="project-card__progress project-detail__progress">
         <div className="progress-bar">
           <div className="progress-bar__fill" style={{ width: `${pct ?? 0}%` }} />
@@ -371,42 +556,97 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
         ) : (
           <div className="list">
             {displayedActions.map((action) => (
-              <div key={action.id} className={`item${action.completed ? ' is-done' : ''}`}>
-                <label className="item__main">
-                  <input
-                    type="checkbox"
-                    checked={action.completed}
-                    onChange={() => handleToggleAction(action)}
-                  />
-                  <span className="item__name">{action.title}</span>
-                </label>
-                <div className="item__actions">
-                  <button
-                    type="button"
-                    className={`item__action item__action--flag${action.flagged_today ? ' is-flagged' : ''}`}
-                    onClick={() => handleToggleActionFlag(action)}
-                    title={action.flagged_today ? 'Remove from Today' : 'Flag for Today'}
-                  >
-                    🚩
-                  </button>
-                  {action.linked_task_id ? (
-                    <span className="action-linked-indicator">🔗 linked to task</span>
-                  ) : (
+              <div key={action.id}>
+                <div className={`item${action.completed ? ' is-done' : ''}`}>
+                  <label className="item__main">
+                    <input
+                      type="checkbox"
+                      checked={action.completed}
+                      onChange={() => handleToggleAction(action)}
+                    />
+                    <span className="item__name">{action.title}</span>
+                  </label>
+                  <div className="item__actions">
                     <button
                       type="button"
-                      className="item__action"
-                      onClick={() => handleConvertAction(action)}
-                      disabled={convertingId === action.id}
+                      className="item__action item__action--expand"
+                      onClick={() => handleToggleExpand(action)}
+                      title="Show details"
                     >
-                      {convertingId === action.id ? 'Converting…' : 'Convert to task'}
+                      {expandedActionId === action.id ? '▾' : '▸'}
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      className={`item__action item__action--flag${action.flagged_today ? ' is-flagged' : ''}`}
+                      onClick={() => handleToggleActionFlag(action)}
+                      title={action.flagged_today ? 'Remove from Today' : 'Flag for Today'}
+                    >
+                      🚩
+                    </button>
+                    {action.linked_task_id ? (
+                      <span className="action-linked-indicator">🔗 linked to task</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="item__action"
+                        onClick={() => handleConvertAction(action)}
+                        disabled={convertingId === action.id}
+                      >
+                        {convertingId === action.id ? 'Converting…' : 'Convert to task'}
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {expandedActionId === action.id && (
+                  <div className="action-detail">
+                    <div className="attached-saves__header">
+                      <span className="today-section__title">Attached saves</span>
+                      <button type="button" className="item__action" onClick={() => openSavePicker(action.id)}>
+                        + Attach a save
+                      </button>
+                    </div>
+                    {loadingActionSaves === action.id ? null : (actionSaves[action.id] || []).length === 0 ? (
+                      <p className="list-empty">No saves attached yet.</p>
+                    ) : (
+                      <div className="attached-saves">
+                        {(actionSaves[action.id] || []).map((ps) => (
+                          <div key={ps.id} className="attached-save">
+                            <a href={ps.save.url} target="_blank" rel="noreferrer" className="attached-save__title">
+                              {ps.save.title}
+                            </a>
+                            <span className="item__tag">{ps.save.platform}</span>
+                            <button
+                              type="button"
+                              className="item__action item__action--danger"
+                              onClick={() => handleRemoveProjectSave(ps.id, action.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {savePickerFor && (
+        <Picker
+          title="Attach a save"
+          items={allSaves}
+          getKey={(s) => s.id}
+          getLabel={(s) => s.title}
+          getSubLabel={(s) => s.platform}
+          onSelect={handleAttachSave}
+          onClose={() => setSavePickerFor(null)}
+          emptyLabel="No saves yet — add one in Save Manager first."
+        />
+      )}
     </div>
   );
 }

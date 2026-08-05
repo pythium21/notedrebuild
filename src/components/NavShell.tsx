@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/tasks', label: 'Tasks', icon: '✓' },
   { href: '/projects', label: 'Projects', icon: '▤' },
   { href: '/saves', label: 'Saves', icon: '🔖' },
+  { href: '/pages', label: 'Notes', icon: '📝' },
 ];
 
 function isActive(pathname: string, href: string) {

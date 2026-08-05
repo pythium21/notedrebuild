@@ -110,6 +110,9 @@ export default function ProjectsPage() {
                     ))}
                   </div>
                 )}
+                <div className={`project-card__outcome${project.outcome ? '' : ' project-card__outcome--empty'}`}>
+                  {project.outcome || 'No outcome set yet'}
+                </div>
                 <div className="project-card__progress">
                   <div className="progress-bar">
                     <div className="progress-bar__fill" style={{ width: `${pct ?? 0}%` }} />
