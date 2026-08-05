@@ -10,15 +10,33 @@ Client writes set user_id from the authenticated session; it is never user-suppl
 Tables
 projects
 Column	Type	Notes
-name	text not null	
-steps	text	actionable steps summary
-status	text not null default 'Planning'	one of: Planning · In progress · Done
+name	text not null	the project's title field — always been `name`, never `title`; do not rename or introduce a `title` alias anywhere in Projects code
+status	text, nullable	one of: active · on_hold · done · archived. Migrated in place from the legacy `Planning`/`In progress`/`Done` 3-value status (confirmed live 2026-08-05) — `not null default 'Planning'` became nullable with no default. `on_hold` and `archived` have no legacy equivalent, so no rows land there until a user sets them explicitly. See collision note below.
+parent_id	uuid, nullable	references projects(id) on delete restrict; mirrors the Pages hierarchy pattern — see DECISIONS.md D-011.
+priority	text, nullable	unset until user sets it; one of: high · medium · low
+description	text, nullable	
+due_date	date, nullable	
+tags	text[], nullable	
+
+Confirmed live 2026-08-05 (DECISIONS.md D-011): `status`/`priority`/`description`/`due_date`/`tags`/`parent_id` above, plus the `actions` table below, applied to the live Supabase project — see supabase/schema.sql for the exact statements that were run. The legacy `steps` column has been dropped (superseded by `actions`) — do not reference `projects.steps` anywhere; it no longer exists.
+
+Collision resolved (2026-08-05): the original `projects.status` (`Planning`/`In progress`/`Done`, not null, defaulted) and D-011's new `status` (`active`/`on_hold`/`done`/`archived`) couldn't coexist as two same-named columns — resolved by migrating the existing column in place rather than adding a differently-named one. Legacy values collapsed: `Planning`→`active`, `In progress`→`active`, `Done`→`done`. Consequence: the existing Projects list UI's status `<select>` (`src/app/projects/page.tsx`, `STATUSES` array + `ProjectStatus` type in `src/lib/projects.ts`) still reads the old 3-value enum as of this doc update and needs updating to the new 4-value one — tracked in BACKLOG.md.
+
 tasks
 Column	Type	Notes
 name	text not null	
 tag	text	free-text label; commonly a project name, deliberately no FK
 done	boolean not null default false	
 date	date	due/created date shown in UI
+flagged_today	boolean not null default false	drives the Today view alongside actions.flagged_today; confirmed live 2026-08-05
+actions
+New child entity of projects (DECISIONS.md D-011) — deliberately simpler than tasks (no due date, no priority). Confirmed live 2026-08-05 with RLS policies in place.
+Column	Type	Notes
+project_id	uuid not null	references projects(id) on delete cascade
+title	text not null	the action's title field — new table, no collision with projects.name, `title` is correct here
+completed	boolean not null default false	
+flagged_today	boolean not null default false	drives the Today view alongside tasks.flagged_today
+linked_task_id	uuid, nullable	references tasks(id) on delete set null; set when an action is promoted to a standalone task (soft link, not copy-and-delete — see DECISIONS.md D-011)
 saves
 This table pre-existed in the live Supabase project (repurposed from the old NOTED app, see DECISIONS.md D-003) — it was NOT created fresh, so its columns were confirmed by querying the live project directly rather than assumed. Confirmed via PostgREST column-existence probing (`select=<col>&limit=0` against `/rest/v1/saves`; the table has RLS and no accessible rows under the anon key, so a live row read wasn't possible — each candidate column name either 200s (exists) or 42703s (doesn't)).
 Column	Type	Notes

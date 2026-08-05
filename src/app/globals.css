@@ -468,3 +468,249 @@ a {
   padding: 0.2rem 0.5rem;
   background: var(--bg);
 }
+
+/* ---- Today view ---- */
+
+.today-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.today-section__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.today-section__title a:hover {
+  text-decoration: underline;
+}
+
+.today-item {
+  cursor: pointer;
+}
+
+/* ---- Badges ---- */
+
+.badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.badge--unset {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.badge--status-active {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge--status-done {
+  background: color-mix(in srgb, #2ea043 18%, var(--bg));
+  border-color: #2ea043;
+  color: #2ea043;
+}
+
+.badge--status-on_hold,
+.badge--status-archived {
+  color: var(--text-muted);
+}
+
+.badge--priority-high {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---- Project card grid ---- */
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.project-grid--nested {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.project-card__title {
+  font-weight: 600;
+}
+
+.project-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.project-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.project-card__due {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.project-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.progress-bar__label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ---- Project detail page ---- */
+
+.project-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.project-detail__back {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.project-detail__name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 100%;
+}
+
+.project-detail__name:focus {
+  outline: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.project-detail__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.project-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.project-detail__field input,
+.project-detail__field textarea {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.project-detail__field--full {
+  width: 100%;
+}
+
+.project-detail__warning {
+  font-size: 0.85rem;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
+.project-detail__progress {
+  margin-top: 0.25rem;
+}
+
+.project-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.project-detail__section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.actions-controls {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.actions-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.actions-controls select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.action-linked-indicator {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.item__action--flag {
+  opacity: 0.4;
+}
+
+.item__action--flag.is-flagged {
+  opacity: 1;
+}

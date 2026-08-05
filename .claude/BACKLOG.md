@@ -24,10 +24,21 @@ P2:
 
 ## Projects
 
-- [ ] OPEN QUESTION: Projects currently only supports create (title + optional steps string + status dropdown). No detail view — steps typed at creation never surface again, can't be checked off, edited, or added to after creation. Need to decide: does tapping a project open a detail page with an editable steps/checklist, expand inline, or something else? Decide before building further. Flagged Aug 2026.
+Architecture decided 2026-08-05 (DECISIONS.md D-011) — resolves the prior "no detail view" open question. Built 2026-08-05:
+
+- [x] Apply the schema SQL manually in Supabase — `projects.name` (not `title`) remains the title field; legacy `steps` column dropped. See `supabase/schema.sql` / SCHEMA.md.
+- [x] `src/lib/projects.ts` (new `ProjectStatus`/`ProjectPriority` types, `getProject`/`listChildProjects`/`updateProject`/`computeProjectProgress`) and `src/lib/actions.ts` (new module)
+- [x] Projects list page → card grid (status/priority badges, tags, live recursive progress %, due date), name-only quick-capture
+- [x] Project detail page (`src/app/projects/[id]/`): inline-editable header fields, progress bar, sub-projects grid, actions list (quick-add, checkbox, 🚩 flag, sort/filter, convert-to-task)
+- [x] Convert-to-task flow (soft link via `linked_task_id`, "🔗 linked to task" indicator)
+- [x] Task completion prompts (`window.confirm`) to also complete a linked action
+- [x] Mark-project-done allows open actions, shows soft warning instead of blocking
+- [x] Today view (`/`, home screen): flagged_today actions + tasks, grouped by project for actions; completing clears the flag
+- [ ] Manually verify the above in a live, signed-in browser session — only `npm run build` (TypeScript clean) and an unauthenticated dev-server smoke test have been done so far; the agent environment has no way to complete magic-link auth. See STATUS.md's Known gaps.
 
 ## Horizon
 
+- Supabase MCP connector — enables pushing progress notes/updates into My OS directly from Claude chat sessions, without needing Claude Code open.
 - Notes/Pages editor with Notion-style sub-page nesting (reference implementation parked in the old repo's `reference/nextjs-subpages/` — TypeScript/React, not yet wired into anything)
 - The remaining ~10 routes from the old repo: Health & Fitness, Expense Tracker, Goals, Habits, Journal, Content HQ, Contacts, Resources, Vault, Dashboard
 - Saves: list/grid toggle, platform filters (the minimal `/saves` route itself is now built, see STATUS.md)

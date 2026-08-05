@@ -5,13 +5,14 @@ import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 const NAV_ITEMS = [
+  { href: '/', label: 'Today', icon: '☀' },
   { href: '/tasks', label: 'Tasks', icon: '✓' },
   { href: '/projects', label: 'Projects', icon: '▤' },
   { href: '/saves', label: 'Saves', icon: '🔖' },
 ];
 
 function isActive(pathname: string, href: string) {
-  return pathname === href || (href === '/tasks' && pathname === '/');
+  return pathname === href || (href !== '/' && pathname.startsWith(`${href}/`));
 }
 
 export function NavShell({ children }: { children: React.ReactNode }) {

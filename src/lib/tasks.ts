@@ -7,6 +7,7 @@ export interface Task {
   tag: string | null;
   done: boolean;
   date: string | null;
+  flagged_today: boolean;
   created_at: string;
 }
 
@@ -15,6 +16,17 @@ export async function listTasks(): Promise<Task[]> {
     .from('tasks')
     .select('*')
     .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Task[];
+}
+
+export async function listFlaggedTasks(): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('flagged_today', true)
+    .eq('done', false)
+    .order('created_at', { ascending: true });
   if (error) throw error;
   return data as Task[];
 }
@@ -44,6 +56,11 @@ export async function createTask(input: {
 
 export async function setTaskDone(id: string, done: boolean): Promise<void> {
   const { error } = await supabase.from('tasks').update({ done }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function setTaskFlaggedToday(id: string, flagged: boolean): Promise<void> {
+  const { error } = await supabase.from('tasks').update({ flagged_today: flagged }).eq('id', id);
   if (error) throw error;
 }
 

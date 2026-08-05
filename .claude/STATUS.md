@@ -2,7 +2,7 @@
 
 What currently exists in the running deployment. This file describes the present only — planned work lives in BACKLOG.md, rationale in DECISIONS.md.
 
-**Last updated: 2026-08-04**
+**Last updated: 2026-08-05**
 
 ## Deployment
 
@@ -17,11 +17,12 @@ What currently exists in the running deployment. This file describes the present
 
 ## App (as of current commit)
 
-- Next.js App Router + TypeScript scaffold, routes: `/tasks`, `/projects`, `/saves`, `/share-target`, all deployed and live. Root `/` redirects to `/tasks` (capture-first: the app opens straight into the task list).
+- Next.js App Router + TypeScript scaffold, routes: `/`, `/tasks`, `/projects`, `/projects/[id]`, `/saves`, `/share-target`, all deployed and live. Root `/` is now the Today view (DECISIONS.md D-011) — it no longer redirects to `/tasks`; the bottom nav / sidebar's first item is "Today".
 - **Auth**: Supabase magic-link email, gating the whole app client-side via `AuthGate` (`src/components/AuthGate.tsx`). No session → email form; link click signs in. Send/resend button has a 60s cooldown (auto-extended if Supabase itself reports a rate limit) to avoid hammering the mail provider.
-- **Data**: `src/lib/tasks.ts`, `src/lib/projects.ts`, `src/lib/saves.ts` wrap all Supabase reads/writes for their table. Pages never call `supabase.from(...)` directly.
-- **Tasks**: add (name + optional free-text tag + optional date) via an always-visible input at the top of the list, no modal. Toggle done via checkbox.
-- **Projects**: add (name + optional steps text) via the same top-of-list pattern. Status (Planning / In progress / Done) changeable inline via a select.
+- **Data**: `src/lib/tasks.ts`, `src/lib/projects.ts`, `src/lib/actions.ts`, `src/lib/saves.ts` wrap all Supabase reads/writes for their table. Pages never call `supabase.from(...)` directly.
+- **Tasks**: add (name + optional free-text tag + optional date) via an always-visible input at the top of the list, no modal. Toggle done via checkbox. Each row has a 🚩 flag toggle (`flagged_today`) that surfaces it on the Today view; marking a task done that has a linked action (via `actions.linked_task_id`) prompts `window.confirm()` to also complete that action.
+- **Projects / Actions** (DECISIONS.md D-011, schema applied 2026-08-05): Projects list (`/projects`) is a card grid — title, status badge (active/on_hold/done/archived or "unset"), priority badge (high/medium/low or "unset"), tags, live recursive progress % rolled up through child projects, due date. Quick-capture is name-only (status/priority start null). Project detail (`/projects/[id]`) has inline-editable name/status/priority/due date/tags/description (each field saves on blur/change, optimistic with rollback on error), a progress bar, a sub-projects grid (`parent_id`, `on delete restrict`), and an actions list below: quick-add via Enter, checkbox to complete, sort (created/title/completed) and filter (all/open/completed) controls, a 🚩 flag toggle, and a "Convert to task" button per row that inserts into `tasks` and soft-links via `linked_task_id` (action stays visible, shows "🔗 linked to task" once converted, no copy-and-delete). Setting status to `done` with open actions shows a soft inline warning ("N actions still open") rather than blocking.
+- **Today view** (`/`, DECISIONS.md D-011): unified list of `flagged_today` tasks (flat) and `flagged_today` actions (grouped by project, project name links to its detail page). Completing an item from here clears its `flagged_today` flag and removes it from the list.
 - **Saves** (DECISIONS.md D-003, deliberate capture-first exception): add (url + optional title + platform select defaulting to auto-detect) via the same top-of-list pattern; list links out to each saved URL. `saves` table pre-existed in the repurposed NOTED Supabase project — columns were confirmed live rather than assumed; see SCHEMA.md. `cleanUrl()` strips `utm_*`/`rcm` tracking params before insert; `detectPlatform()` maps the URL host to one of YouTube / Articles / LinkedIn / Facebook / Reddit / Websites (defaults to Websites).
 - **Share target**: `/share-target` receives Android's share sheet via the PWA `share_target` manifest entry (GET, `title`/`text`/`url` params), extracts the first `http(s)` URL from `text` when `url` is empty, POSTs it to the `/api/share-target` route handler, then redirects to `/saves` after ~1.2s. The route handler (`src/app/api/share-target/route.ts`) writes to `saves` via a `service_role` client built inline, stamping `user_id` from the `NOTED_USER_ID` env var — not the browser session (DECISIONS.md D-009; see MISTAKES.md for why this changed). Requires `SUPABASE_SERVICE_ROLE_KEY` and `NOTED_USER_ID` set in Railway and `.env.local`.
 - **Add buttons** (Tasks + Projects): guarded against double-submit via an `isAdding` loading state — button disables and reads "Adding…" while the insert is in flight, handler re-entry guarded too. Fixed after a duplicate-row bug; see MISTAKES.md. Saves' add form follows the same pattern.
@@ -44,7 +45,7 @@ What currently exists in the running deployment. This file describes the present
 
 ## Current phase
 
-Daily-use trial. Per the capture-first build order (DECISIONS.md), no new routes get pulled in until Tasks + Projects have been used for real, day-to-day, for about a week.
+Daily-use trial, extended by DECISIONS.md D-011: the Projects/Actions architecture was built now (2026-08-05) at explicit user direction — a deliberate exception to D-002's "no new routes until used for a week" ordering, same kind of scoped exception D-003 made for Save Manager. Actions/Today are new surfaces on the existing Projects route, not a new top-level route from BACKLOG.md's Horizon list.
 
 ## Verified working
 
@@ -54,6 +55,7 @@ Daily-use trial. Per the capture-first build order (DECISIONS.md), no new routes
 
 ## Known gaps (tracked in BACKLOG.md, listed here only for orientation)
 
+- Projects/Actions/Today (D-011) verified only via `npm run build` (TypeScript compiles clean) and a dev-server smoke test of the pre-auth screen — the authenticated flows (card grid, detail page inline editing, quick-add, convert-to-task, Today view) have NOT been manually clicked through yet. Magic-link auth couldn't be completed in the agent sandbox (no email access), so this needs a real walkthrough before being treated as confirmed working, same bar as the "Verified working" section below.
 - No real app icons (placeholder SVG/PNGs only)
 - No offline write queue — Supabase must be reachable to read or write
 - No export/import (JSON)

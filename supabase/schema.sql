@@ -92,3 +92,57 @@ create policy "saves_update_own" on public.saves
 
 create policy "saves_delete_own" on public.saves
   for delete using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- actions + projects/tasks alterations (DECISIONS.md D-011)
+--
+-- Applied live 2026-08-05 (confirmed by user). Ran directly in the Supabase
+-- SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule — this block
+-- documents what was applied, it wasn't executed by Claude Code.
+-- ---------------------------------------------------------------------------
+
+-- Resolve projects.status collision: migrate legacy 3-value status (not null,
+-- defaulted) to the new 4-value lifecycle status (nullable, no default) in
+-- place, rather than adding a second same-named column.
+alter table public.projects alter column status drop not null;
+alter table public.projects alter column status drop default;
+update public.projects set status = 'active' where status in ('Planning', 'In progress');
+update public.projects set status = 'done' where status = 'Done';
+-- status now holds only active/done/null going forward (on_hold and archived
+-- are new states with no legacy equivalent — nothing to migrate into them)
+
+-- Legacy steps column superseded by the actions table — dropped.
+alter table public.projects drop column if exists steps;
+
+create table if not exists public.actions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  title text not null,
+  completed boolean not null default false,
+  flagged_today boolean not null default false,
+  linked_task_id uuid references public.tasks(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.actions enable row level security;
+
+create policy "actions_select_own" on public.actions
+  for select using (user_id = auth.uid());
+
+create policy "actions_insert_own" on public.actions
+  for insert with check (user_id = auth.uid());
+
+create policy "actions_update_own" on public.actions
+  for update using (user_id = auth.uid());
+
+create policy "actions_delete_own" on public.actions
+  for delete using (user_id = auth.uid());
+
+alter table public.projects add column if not exists parent_id uuid references public.projects(id) on delete restrict;
+alter table public.projects add column if not exists priority text; -- nullable: high/medium/low
+alter table public.projects add column if not exists description text;
+alter table public.projects add column if not exists due_date date;
+alter table public.projects add column if not exists tags text[];
+
+alter table public.tasks add column if not exists flagged_today boolean not null default false;

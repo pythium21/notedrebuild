@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { getActionByLinkedTaskId, setActionCompleted } from '@/lib/actions';
 import {
   createTask,
   deleteTask,
   listTasks,
   setTaskDone,
+  setTaskFlaggedToday,
   updateTask,
   type Task,
 } from '@/lib/tasks';
@@ -71,6 +73,31 @@ export default function TasksPage() {
       await setTaskDone(task.id, next);
     } catch (e) {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: task.done } : t)));
+      setError((e as Error).message);
+      return;
+    }
+
+    if (next) {
+      try {
+        const linkedAction = await getActionByLinkedTaskId(task.id);
+        if (linkedAction && !linkedAction.completed) {
+          if (window.confirm(`Also mark the linked action "${linkedAction.title}" complete?`)) {
+            await setActionCompleted(linkedAction.id, true);
+          }
+        }
+      } catch (e) {
+        setError((e as Error).message);
+      }
+    }
+  }
+
+  async function handleToggleFlag(task: Task) {
+    const next = !task.flagged_today;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, flagged_today: next } : t)));
+    try {
+      await setTaskFlaggedToday(task.id, next);
+    } catch (e) {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, flagged_today: task.flagged_today } : t)));
       setError((e as Error).message);
     }
   }
@@ -210,6 +237,14 @@ export default function TasksPage() {
                   <span className="item__created">{formatRelativeTime(task.created_at)}</span>
                 </div>
                 <div className="item__actions">
+                  <button
+                    type="button"
+                    className={`item__action item__action--flag${task.flagged_today ? ' is-flagged' : ''}`}
+                    onClick={() => handleToggleFlag(task)}
+                    title={task.flagged_today ? 'Remove from Today' : 'Flag for Today'}
+                  >
+                    🚩
+                  </button>
                   <button
                     type="button"
                     className="item__action"
