@@ -6,6 +6,18 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-015 · Save titles are backfilled via a server-side link-preview fetch when none is supplied (2026-08-08)
+
+**Context:** Saves created without an explicit title — the manual add form's title field is optional, and many Android share-sheet sources don't populate a title either — defaulted to showing the raw cleaned URL as the title (`src/lib/saves.ts`'s `createSave()`, `/api/share-target`'s insert). Reported as a real usability problem: the list showed unreadable link text instead of anything indicating what was actually saved (e.g. a YouTube video's real title).
+
+**Decision:** Add `src/lib/linkPreview.ts`'s `fetchPageTitle()` — a server-only helper that fetches the target URL, extracts `og:title` (falling back to `<title>`), with an 8s timeout, a 2MB response cap, and a private/loopback-host guard (rejects localhost/RFC1918/link-local hostnames) as SSRF defense-in-depth. The 2MB cap isn't arbitrary — an initial 64KB cap (assuming title tags sit near the top of `<head>`) returned null for YouTube specifically, whose `og:title` sits ~684KB into the document behind a large blob of inlined JSON; verified against real URLs (YouTube, Wikipedia, example.com) before landing on 2MB. Wired into two places: `/api/share-target` (already server-side — calls it directly when the Android share payload doesn't include a title) and a new `/api/link-preview` route (POST `{ url }` → `{ title }`) that the `/saves` add-form calls client-side, before `createSave()`, only when the optional title field was left blank. A plain client-side `fetch()` to an arbitrary external URL would hit CORS for most sites, so this has to go through our own server either way.
+
+**Rationale:** Fetching server-side is the only option that reliably avoids CORS regardless of the target site's own CORS policy. The private-host guard costs little and closes an obvious self-inflicted SSRF footgun (a share intent or pasted URL pointed at Railway's internal network) even though the realistic threat model for a single-user personal app is low. Both title-less code paths still fall back to the raw URL if the fetch fails or times out — this is a best-effort backfill, not a guarantee.
+
+**Status:** Active.
+
+---
+
 ## D-014 · Mobile hamburger/drawer becomes a shared app-wide shell, not a Notes-only pattern (2026-08-08)
 
 **Context:** Aug 6 bug-triage flagged "Notes has its own hamburger drawer, other sections don't" as inconsistent design. The instinctive fix would be to strip the hamburger out of Notes, but Notes' drawer is the only way to browse the page tree on mobile — removing it would remove real functionality, not just inconsistency. Investigation also found the drawer's actual bug: `NavShell`'s sidebar switches to desktop mode at `600px`, but Notes' drawer only switched at `768px`, so between 600–767px both could render at once.

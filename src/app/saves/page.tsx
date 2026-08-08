@@ -38,9 +38,27 @@ export default function SavesPage() {
     setError(null);
     setIsAdding(true);
     try {
+      let finalTitle = title.trim();
+      if (!finalTitle) {
+        // Best-effort — falls through to createSave()'s own URL fallback if
+        // this fails, times out, or the page has no title. See D-015.
+        try {
+          const res = await fetch('/api/link-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url.trim() }),
+          });
+          if (res.ok) {
+            const body = await res.json();
+            if (body.title) finalTitle = body.title;
+          }
+        } catch {
+          // ignore — falls back below
+        }
+      }
       const save = await createSave({
         url: url.trim(),
-        title: title.trim(),
+        title: finalTitle,
         platform: platform || undefined,
       });
       setSaves((prev) => [save, ...prev]);

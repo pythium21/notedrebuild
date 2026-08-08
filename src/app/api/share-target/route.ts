@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { fetchPageTitle } from '@/lib/linkPreview';
 import { cleanUrl, detectPlatform } from '@/lib/saves';
 
 // Service-role client, created inside this route handler only — never
@@ -23,7 +24,11 @@ export async function POST(request: Request) {
   }
 
   const url = cleanUrl(rawUrl);
-  const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : url;
+  const suppliedTitle = typeof body.title === 'string' ? body.title.trim() : '';
+  // Android share payloads often omit a title — fall back to a server-side
+  // fetch of the page's own title before giving up and using the raw URL.
+  // See DECISIONS.md D-015.
+  const title = suppliedTitle || (await fetchPageTitle(url)) || url;
   const platform = detectPlatform(url);
 
   const { data, error } = await getSupabaseService()

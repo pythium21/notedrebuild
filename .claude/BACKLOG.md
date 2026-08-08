@@ -22,7 +22,7 @@ P1 — capture-flow gaps found in daily use:
 
 P2:
 
-- [ ] Fix URL overflow in list view — long URLs (e.g. LinkedIn URNs) run off-screen instead of truncating. Options: CSS ellipsis/truncate (cheap), fetch og:title at save time and display that instead (nicer, more work), or show domain + truncated path as a middle ground.
+- [ ] Fix URL overflow in list view — long URLs (e.g. LinkedIn URNs) run off-screen instead of truncating. The `og:title`-at-save-time option was built 2026-08-08 (DECISIONS.md D-015) and covers the common case, but it's best-effort: a title-less save whose page has no `og:title`/`<title>`, is unreachable, or times out still falls back to the raw URL, and existing pre-D-015 rows with a URL already baked in as their title aren't backfilled. CSS ellipsis/truncate is still worth adding as a hard guarantee against overflow regardless of title-fetch success.
 
 ## Projects
 
