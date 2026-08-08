@@ -30,6 +30,8 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** A per-page drawer implementation was never going to stay consistent with the app shell over time — a shared mechanism means Today/Tasks/Projects/Saves can each opt into drawer content later (content TBD) without re-solving the topbar/overlay/breakpoint/focus mechanics Notes already had to solve once. Matches the same "one shared shell, pages plug into it" shape as `NavShell` itself.
 
+**Update (2026-08-08):** The injection mechanism carries a hard contract discovered the painful way: content passed to `usePageDrawerContent()` **must be memoized** (`useMemo`), and the provider's callbacks are kept referentially stable to make that possible — a fresh node per render causes an infinite update loop that freezes the injecting route (post-mortem in MISTAKES.md). The contract is documented on the hook itself; any future page opting into drawer content must follow it.
+
 **Status:** Active.
 
 ---

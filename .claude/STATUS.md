@@ -60,6 +60,7 @@ Daily-use trial, extended by DECISIONS.md D-011 and D-012: the Projects/Actions 
 - Task and project creation persists correctly after a page refresh.
 - Repeat add-button testing confirms the double-submit fix: no duplicate inserts on rapid repeat clicks.
 - AuthGate's resend-cooldown is deployed and verified working in production: the send/resend button disables for 60s after a send.
+- Saves screen bottom nav restored on a real device (user-confirmed 2026-08-08) after the URL-overflow root-cause fix — see MISTAKES.md.
 
 ## Known gaps (tracked in BACKLOG.md, listed here only for orientation)
 
