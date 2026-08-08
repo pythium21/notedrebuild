@@ -2,11 +2,11 @@
 
 Confirmed post-mortems with a known root cause. Undiagnosed bugs live in BACKLOG.md until root-caused.
 
-## Add-task/add-save inputs auto-popped the mobile keyboard on every page load
+## Add-task/add-save/add-project inputs auto-popped the mobile keyboard on every page load
 
-**Root cause**: The "add" form inputs in `src/app/tasks/page.tsx` and `src/app/saves/page.tsx` (the *add* forms specifically — not the inline-edit form, which correctly uses `autoFocus` when a user taps "edit") had `autoFocus` set unconditionally. It fired every time the page mounted, not just when the user intended to add something. On mobile this popped the on-screen keyboard immediately on navigation, which was also very likely (pending on-device confirmation, see BACKLOG.md) the cause of a separate-looking report that Saves' bottom nav was missing — the auto-popped keyboard shrinks the mobile viewport, pushing the fixed-position bottom nav off-screen until the keyboard closes, rather than the nav itself having a bug.
+**Root cause**: The "add" form inputs in `src/app/tasks/page.tsx`, `src/app/saves/page.tsx`, and `src/app/projects/page.tsx` (the *add* forms specifically — not the inline-edit form in Tasks, which correctly uses `autoFocus` only when a user taps "edit", or the sign-in screen / picker-modal search inputs elsewhere in the app, which fire on an explicit full-screen gate or user-triggered modal open rather than routine navigation) had `autoFocus` set unconditionally. It fired every time the page mounted, not just when the user intended to add something. On mobile this popped the on-screen keyboard immediately on navigation, which was also very likely (pending on-device confirmation, see BACKLOG.md) the cause of a separate-looking report that Saves' bottom nav was missing — the auto-popped keyboard shrinks the mobile viewport, pushing the fixed-position bottom nav off-screen until the keyboard closes, rather than the nav itself having a bug.
 
-**Fix**: Removed `autoFocus` from both add-form inputs (2026-08-08).
+**Fix**: Removed `autoFocus` from all three add-form inputs. Tasks and Saves were fixed 2026-08-08 as part of the original triage batch; Projects' add-form had the identical bug but was missed in that sweep — caught and fixed separately, same day.
 
 ## Notes' hamburger drawer used a different breakpoint than the app shell's sidebar, so both could show at once
 

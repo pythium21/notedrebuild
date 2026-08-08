@@ -70,7 +70,6 @@ export default function ProjectsPage() {
           type="text"
           className="add-form__name"
           placeholder="Add a project…"
-          autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
