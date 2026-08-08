@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDrawer, usePageDrawerContent } from '@/components/DrawerContext';
 import { createPage, listPages, type Page } from '@/lib/pages';
 import { PageEditor } from './PageEditor';
@@ -114,7 +114,17 @@ export function PagesShell({ pageId }: { pageId: string | null }) {
     );
   }
 
-  usePageDrawerContent(renderTree(closeDrawer));
+  // Must be memoized: a fresh node every render re-fires the injection effect,
+  // which re-renders every drawer consumer (including this component) — an
+  // infinite update loop that froze the Notes route. See DrawerContext's
+  // usePageDrawerContent contract and MISTAKES.md. renderTree itself is a new
+  // function each render, so depend on the data it reads instead.
+  const drawerTree = useMemo(
+    () => renderTree(closeDrawer),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pages, pageId, loading, isCreating, closeDrawer]
+  );
+  usePageDrawerContent(drawerTree);
 
   return (
     <div className="pages-shell">
