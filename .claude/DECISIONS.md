@@ -6,6 +6,18 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-014 · Mobile hamburger/drawer becomes a shared app-wide shell, not a Notes-only pattern (2026-08-08)
+
+**Context:** Aug 6 bug-triage flagged "Notes has its own hamburger drawer, other sections don't" as inconsistent design. The instinctive fix would be to strip the hamburger out of Notes, but Notes' drawer is the only way to browse the page tree on mobile — removing it would remove real functionality, not just inconsistency. Investigation also found the drawer's actual bug: `NavShell`'s sidebar switches to desktop mode at `600px`, but Notes' drawer only switched at `768px`, so between 600–767px both could render at once.
+
+**Decision:** Generalize the hamburger+drawer pattern into `NavShell` itself (`src/components/NavShell.tsx`), which already wraps every route identically, rather than removing it from Notes. A new `DrawerContext` (`src/components/DrawerContext.tsx`) lets any page inject custom content into the shared drawer via `usePageDrawerContent()`; pages that don't inject anything get an empty "Nothing here yet." fallback. Notes is the only current consumer — it feeds its page tree into the shared drawer instead of maintaining a separate hamburger/topbar/drawer implementation. The breakpoint mismatch is resolved as a side effect: the shared drawer now switches off at `600px`, matching the sidebar exactly.
+
+**Rationale:** A per-page drawer implementation was never going to stay consistent with the app shell over time — a shared mechanism means Today/Tasks/Projects/Saves can each opt into drawer content later (content TBD) without re-solving the topbar/overlay/breakpoint/focus mechanics Notes already had to solve once. Matches the same "one shared shell, pages plug into it" shape as `NavShell` itself.
+
+**Status:** Active.
+
+---
+
 ## D-013 · Today page gains an Upcoming section fed by a new `actions.due_date` column (2026-08-08)
 
 **Context:** Aug 6 bug-triage found the Today page only ever surfaced items explicitly flagged for today — nothing let you see what was coming up. Tasks and Projects already had a `date`/`due_date` column; Actions didn't.

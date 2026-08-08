@@ -2,6 +2,18 @@
 
 Confirmed post-mortems with a known root cause. Undiagnosed bugs live in BACKLOG.md until root-caused.
 
+## Add-task/add-save inputs auto-popped the mobile keyboard on every page load
+
+**Root cause**: The "add" form inputs in `src/app/tasks/page.tsx` and `src/app/saves/page.tsx` (the *add* forms specifically — not the inline-edit form, which correctly uses `autoFocus` when a user taps "edit") had `autoFocus` set unconditionally. It fired every time the page mounted, not just when the user intended to add something. On mobile this popped the on-screen keyboard immediately on navigation, which was also very likely (pending on-device confirmation, see BACKLOG.md) the cause of a separate-looking report that Saves' bottom nav was missing — the auto-popped keyboard shrinks the mobile viewport, pushing the fixed-position bottom nav off-screen until the keyboard closes, rather than the nav itself having a bug.
+
+**Fix**: Removed `autoFocus` from both add-form inputs (2026-08-08).
+
+## Notes' hamburger drawer used a different breakpoint than the app shell's sidebar, so both could show at once
+
+**Root cause**: `src/components/pages/PagesShell.tsx` built its own hamburger/topbar/drawer for mobile page-tree navigation, switching to its desktop persistent sidebar at `768px`. `NavShell` (`src/components/NavShell.tsx`, wraps every route) switches its own sidebar on at `600px`. Between 600px and 767px, both the app sidebar and Notes' own drawer/topbar could be visible simultaneously — a genuinely different mobile nav pattern on `/pages` than every other route, exactly as reported.
+
+**Fix**: See DECISIONS.md D-014. The hamburger/drawer mechanism moved into `NavShell` itself via a new `DrawerContext`, generalized to every route (empty by default) rather than staying Notes-specific; Notes now injects its page tree into the shared drawer via `usePageDrawerContent()`. The shared drawer switches off at `600px`, matching the sidebar exactly — no more dual-breakpoint gap.
+
 ## Double-submit on Tasks/Projects Add button created duplicate rows
 
 **Root cause**: The `handleAdd` submit handlers in `src/app/tasks/page.tsx` and `src/app/projects/page.tsx` had no loading state guarding the Supabase insert. A user double-clicking Add (e.g. because the request felt slow) fired two `createTask`/`createProject` calls before the first resolved, inserting two rows.

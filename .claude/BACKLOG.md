@@ -5,8 +5,10 @@ All open work. **Active** is flat-ranked by priority (top = next). **Horizon** i
 ## Active
 
 1. Create the Supabase project, apply `supabase/schema.sql`, wire up real env vars, deploy to Railway, install as a PWA on a phone — use it for a week before touching anything below.
-2. Verify `saves` table constraints against the live Supabase dashboard (NOT NULL / CHECK on `platform`, `title`) — only column existence was confirmed via anon-key PostgREST probing when the `/saves` route was built (DECISIONS.md D-003); RLS blocked every insert attempt before a constraint violation could surface, so those details are currently assumed to match the tasks/projects convention rather than confirmed.
-3. Fix `manifest.json`'s `share_target` enctype — browser console warns it defaults to `application/x-www-form-urlencoded`; verify the `/share-target` route's expected content type and set `enctype` explicitly, then reinstall the PWA to pick up the manifest change.
+2. Verify on a real device (Aug 6 bug-triage batch, 2026-08-08): confirm Saves' bottom nav is actually fixed as a side effect of removing `autoFocus` from the add-save input, not a separate bug — see MISTAKES.md's autoFocus entry.
+3. Verify on a real device (Aug 6 bug-triage batch, 2026-08-08): confirm the new `interactiveWidget: 'resizes-content'` viewport setting (`src/app/layout.tsx`) actually surfaces the Notes block-editor's slash-command menu above the on-screen keyboard — this was strong theory (fixed-position menu pinned behind the keyboard due to the missing viewport setting), not a directly-reproduced root cause; the JS logic that opens the menu was already confirmed correct via component-level testing. If confirmed, move this from here into MISTAKES.md as a closed post-mortem.
+4. Verify `saves` table constraints against the live Supabase dashboard (NOT NULL / CHECK on `platform`, `title`) — only column existence was confirmed via anon-key PostgREST probing when the `/saves` route was built (DECISIONS.md D-003); RLS blocked every insert attempt before a constraint violation could surface, so those details are currently assumed to match the tasks/projects convention rather than confirmed.
+5. Fix `manifest.json`'s `share_target` enctype — browser console warns it defaults to `application/x-www-form-urlencoded`; verify the `/share-target` route's expected content type and set `enctype` explicitly, then reinstall the PWA to pick up the manifest change.
 
 ## Tasks
 
