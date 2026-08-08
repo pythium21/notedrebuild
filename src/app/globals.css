@@ -115,6 +115,10 @@ a {
   max-width: 640px;
   margin: 0 auto;
   padding: 1.25rem 1rem calc(var(--nav-height) + 1.25rem);
+  /* Hard guarantee: no child can widen the page past the viewport, which on
+     mobile expands the layout viewport and breaks position:fixed elements.
+     clip (not hidden) so no scroll container is created. */
+  overflow-x: clip;
 }
 
 .bottom-nav {
@@ -367,6 +371,10 @@ a {
 .item__name {
   flex: 1;
   min-width: 0;
+  /* URLs-as-titles (Saves) have no legal break points — without this a long
+     token expands the mobile layout viewport and drags the fixed bottom nav
+     off-screen with it. See MISTAKES.md. */
+  overflow-wrap: anywhere;
 }
 
 .item__created {
