@@ -9,10 +9,15 @@ export interface Action {
   completed: boolean;
   flagged_today: boolean;
   linked_task_id: string | null;
+  due_date: string | null;
   created_at: string;
 }
 
 export interface FlaggedAction extends Action {
+  project: { name: string } | null;
+}
+
+export interface UpcomingAction extends Action {
   project: { name: string } | null;
 }
 
@@ -35,6 +40,20 @@ export async function listFlaggedActions(): Promise<FlaggedAction[]> {
     .order('created_at', { ascending: true });
   if (error) throw error;
   return data as unknown as FlaggedAction[];
+}
+
+export async function listUpcomingActions(): Promise<UpcomingAction[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('actions')
+    .select('*, project:projects(name)')
+    .eq('completed', false)
+    .eq('flagged_today', false)
+    .not('due_date', 'is', null)
+    .gte('due_date', today)
+    .order('due_date', { ascending: true });
+  if (error) throw error;
+  return data as unknown as UpcomingAction[];
 }
 
 export async function getActionByLinkedTaskId(taskId: string): Promise<Action | null> {

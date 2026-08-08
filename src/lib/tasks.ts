@@ -31,6 +31,20 @@ export async function listFlaggedTasks(): Promise<Task[]> {
   return data as Task[];
 }
 
+export async function listUpcomingTasks(): Promise<Task[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('done', false)
+    .eq('flagged_today', false)
+    .not('date', 'is', null)
+    .gte('date', today)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
 export async function createTask(input: {
   name: string;
   tag?: string | null;

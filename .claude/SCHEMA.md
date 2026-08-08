@@ -34,13 +34,14 @@ done	boolean not null default false
 date	date	due/created date shown in UI
 flagged_today	boolean not null default false	drives the Today view alongside actions.flagged_today; confirmed live 2026-08-05
 actions
-New child entity of projects (DECISIONS.md D-011) — deliberately simpler than tasks (no due date, no priority). Confirmed live 2026-08-05 with RLS policies in place.
+New child entity of projects (DECISIONS.md D-011) — deliberately simpler than tasks (no priority). Confirmed live 2026-08-05 with RLS policies in place.
 Column	Type	Notes
 project_id	uuid not null	references projects(id) on delete cascade
 title	text not null	the action's title field — new table, no collision with projects.name, `title` is correct here
 completed	boolean not null default false	
 flagged_today	boolean not null default false	drives the Today view alongside tasks.flagged_today
 linked_task_id	uuid, nullable	references tasks(id) on delete set null; set when an action is promoted to a standalone task (soft link, not copy-and-delete — see DECISIONS.md D-011)
+due_date	date, nullable	added 2026-08-08 (DECISIONS.md D-013) to feed the Today page's Upcoming section; applied manually via the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code convention
 pages
 New table (DECISIONS.md D-012), built from scratch this round — the Pages/Notes feature was designed prior to the Next.js rebuild but never carried over into this repo until now. Confirmed live 2026-08-05 with RLS policies in place (4 policies scoped by `user_id`, standard convention).
 Column	Type	Notes

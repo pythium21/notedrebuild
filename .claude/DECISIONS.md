@@ -6,6 +6,18 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-013 · Today page gains an Upcoming section fed by a new `actions.due_date` column (2026-08-08)
+
+**Context:** Aug 6 bug-triage found the Today page only ever surfaced items explicitly flagged for today — nothing let you see what was coming up. Tasks and Projects already had a `date`/`due_date` column; Actions didn't.
+
+**Decision:** Add `actions.due_date date` (nullable), applied manually via the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code convention. The Today page (`src/app/page.tsx`) now fetches upcoming (not-yet-flagged, not-done/completed) tasks, actions, and projects with a due date in the future, merges and sorts them client-side by date, and renders them in a new "Upcoming" section below the flagged-today section.
+
+**Rationale:** Deliberately excludes anything already flagged/completed from Upcoming so nothing duplicates between the two sections. Excludes `done`/`archived` projects the same way. Actions stay "deliberately simpler than tasks" per D-011 in every other respect (still no priority) — `due_date` is the one field pulled over, scoped narrowly to what Upcoming needs.
+
+**Status:** Active.
+
+---
+
 ## D-012 · Projects gain outcome, notes, and saves attachment (supersedes checklist-only model from D-010/D-011) (2026-08-05)
 
 **Context:** D-010/D-011 shipped Projects as a card-grid + action-tracker (name, status, priority, due_date, tags, description, parent_id, direct actions, child projects, computed progress %). Real usage immediately surfaced a gap: a project like "Home Renovation" needs to hold reference information (fence measurements), track what success actually looks like (not just % complete), and attach externally-shared content (a Colorbond fencing product link shared via the PWA share target) — none of which "just add an action" supports. Additionally, the Pages/Notes feature this relies on was designed prior to the Next.js rebuild but never actually implemented in the current repo, so this decision also covers building it from scratch.

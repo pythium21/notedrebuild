@@ -214,3 +214,13 @@ create policy "project_saves_delete_own" on public.project_saves
   for delete using (
     exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
   );
+
+-- ---------------------------------------------------------------------------
+-- actions.due_date (DECISIONS.md D-013)
+--
+-- Applied live 2026-08-08 (confirmed by user). Ran directly in the Supabase
+-- SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule — this
+-- documents what was applied, it wasn't executed by Claude Code.
+-- ---------------------------------------------------------------------------
+
+alter table public.actions add column if not exists due_date date;

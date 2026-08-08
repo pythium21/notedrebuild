@@ -38,6 +38,19 @@ export async function listAllProjects(): Promise<Project[]> {
   return data as Project[];
 }
 
+export async function listUpcomingProjects(): Promise<Project[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .or('status.is.null,status.not.in.(done,archived)')
+    .not('due_date', 'is', null)
+    .gte('due_date', today)
+    .order('due_date', { ascending: true });
+  if (error) throw error;
+  return data as Project[];
+}
+
 export async function getProject(id: string): Promise<Project> {
   const { data, error } = await supabase.from('projects').select('*').eq('id', id).single();
   if (error) throw error;
