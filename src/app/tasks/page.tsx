@@ -157,7 +157,6 @@ export default function TasksPage() {
           type="text"
           className="add-form__name"
           placeholder="Add a task…"
-          autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
         />

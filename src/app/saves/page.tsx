@@ -113,7 +113,6 @@ export default function SavesPage() {
           type="url"
           className="add-form__name"
           placeholder="Paste a link…"
-          autoFocus
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
