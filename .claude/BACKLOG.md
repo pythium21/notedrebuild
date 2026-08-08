@@ -52,7 +52,7 @@ Designed pre-rebuild, built from scratch 2026-08-05 (DECISIONS.md D-012) — see
 - [x] `pages` table (title/emoji/parent_id/content jsonb/created_at/updated_at) — applied manually in Supabase.
 - [x] `src/lib/pages.ts` — CRUD, `deletePage()` pre-checks for children and throws a clear error instead of letting the FK restrict fail silently.
 - [x] Block editor (`src/components/pages/PageEditor.tsx`): text/heading/checklist/bullet/page_link blocks, 800ms-debounced autosave, flush-before-write ordering guard for sub-page creation.
-- [x] Hierarchy nav (`src/components/pages/PagesShell.tsx`): persistent sidebar ≥768px, hamburger drawer <768px; recursive tree.
+- [x] Hierarchy nav (`src/components/pages/PagesShell.tsx`): desktop persistent sidebar ≥768px, recursive tree; below 768px the tree is injected into the app-wide shared mobile drawer (unified 2026-08-08 — see STATUS.md's Layout note).
 - [x] Slash-command / bottom-sheet block-type menu (`src/components/pages/BlockMenu.tsx`) — same markup, breakpoint-only CSS switch between inline dropdown and bottom sheet.
 - [x] Routes `/pages` and `/pages/[id]`; nav item added to `NavShell`.
 - [ ] Manually verify in a live, signed-in browser session — entirely untested end-to-end (auth sandbox limitation). See STATUS.md's Known gaps.
