@@ -18,6 +18,25 @@ function isPrivateHost(hostname: string): boolean {
   return PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(hostname));
 }
 
+// Titles that mean "you hit a bot wall / login page", not the actual content.
+// Worse than keeping the URL, so treat them as no-title.
+const JUNK_TITLE_PATTERNS = [
+  /^just a moment/i,
+  /log in or sign up/i,
+  /^sign in\b/i,
+  /^access denied/i,
+  /^attention required/i,
+  /^security check/i,
+  /^robot or human/i,
+];
+
+function usableTitle(raw: string): string | null {
+  const title = decodeHtmlEntities(raw.trim());
+  if (!title) return null;
+  if (JUNK_TITLE_PATTERNS.some((pattern) => pattern.test(title))) return null;
+  return title;
+}
+
 function decodeHtmlEntities(str: string): string {
   return str
     .replace(/&amp;/g, '&')
@@ -73,10 +92,16 @@ export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
     const ogMatch =
       html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i) ||
       html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["']/i);
-    if (ogMatch && ogMatch[1].trim()) return decodeHtmlEntities(ogMatch[1].trim());
+    if (ogMatch) {
+      const title = usableTitle(ogMatch[1]);
+      if (title) return title;
+    }
 
     const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch && titleMatch[1].trim()) return decodeHtmlEntities(titleMatch[1].trim());
+    if (titleMatch) {
+      const title = usableTitle(titleMatch[1]);
+      if (title) return title;
+    }
 
     return null;
   } catch {

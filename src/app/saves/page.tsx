@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type Action, listActionsForProject } from '@/lib/actions';
 import { attachSave } from '@/lib/projectSaves';
 import { listAllProjects, type Project } from '@/lib/projects';
@@ -8,6 +8,13 @@ import { createSave, listSaves, updateSaveTitle, PLATFORMS, type Platform, type 
 import { Picker } from '@/components/Picker';
 
 type ActionOrWhole = Action | { id: '__whole__'; title: string };
+
+// A title that IS a URL tells the user nothing — catches both pre-D-015 rows
+// (title baked in as the exact url) and rows where the share sheet passed the
+// URL itself as the "title" (so title and url differ only by tracking params).
+function hasRawUrlTitle(save: Save): boolean {
+  return save.title === save.url || /^https?:\/\//i.test(save.title);
+}
 
 export default function SavesPage() {
   const [saves, setSaves] = useState<Save[]>([]);
@@ -34,6 +41,19 @@ export default function SavesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Auto-run the title backfill once per visit — the user shouldn't need to
+  // find a button to get readable titles. Failures keep the URL and retry on
+  // the next visit. See DECISIONS.md D-015.
+  const autoRefreshRan = useRef(false);
+  useEffect(() => {
+    if (loading || autoRefreshRan.current) return;
+    if (saves.some(hasRawUrlTitle)) {
+      autoRefreshRan.current = true;
+      void handleRefreshTitles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, saves]);
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!url.trim() || isAdding) return;
@@ -41,7 +61,7 @@ export default function SavesPage() {
     setIsAdding(true);
     try {
       let finalTitle = title.trim();
-      if (!finalTitle) {
+      if (!finalTitle || /^https?:\/\//i.test(finalTitle)) {
         // Best-effort — falls through to createSave()'s own URL fallback if
         // this fails, times out, or the page has no title. See D-015.
         try {
@@ -82,7 +102,7 @@ export default function SavesPage() {
   // not something that needs to be fast, and it keeps server load low.
   async function handleRefreshTitles() {
     if (isRefreshingTitles) return;
-    const stale = saves.filter((s) => s.title === s.url);
+    const stale = saves.filter(hasRawUrlTitle);
     if (stale.length === 0) return;
     setError(null);
     setIsRefreshingTitles(true);
@@ -165,7 +185,7 @@ export default function SavesPage() {
     ...projectActions,
   ];
 
-  const staleTitleCount = saves.filter((s) => s.title === s.url).length;
+  const staleTitleCount = saves.filter(hasRawUrlTitle).length;
 
   return (
     <div>

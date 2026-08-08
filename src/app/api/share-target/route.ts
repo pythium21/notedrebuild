@@ -25,10 +25,13 @@ export async function POST(request: Request) {
 
   const url = cleanUrl(rawUrl);
   const suppliedTitle = typeof body.title === 'string' ? body.title.trim() : '';
-  // Android share payloads often omit a title — fall back to a server-side
-  // fetch of the page's own title before giving up and using the raw URL.
-  // See DECISIONS.md D-015.
-  const title = suppliedTitle || (await fetchPageTitle(url)) || url;
+  // Android share payloads often omit a title — or worse, pass the URL itself
+  // AS the title, which is just as useless. Treat both as "no title" and fall
+  // back to a server-side fetch of the page's own title before giving up and
+  // using the raw URL. See DECISIONS.md D-015.
+  const suppliedIsUrl = /^https?:\/\//i.test(suppliedTitle);
+  const title =
+    suppliedTitle && !suppliedIsUrl ? suppliedTitle : (await fetchPageTitle(url)) || suppliedTitle || url;
   const platform = detectPlatform(url);
 
   const { data, error } = await getSupabaseService()
