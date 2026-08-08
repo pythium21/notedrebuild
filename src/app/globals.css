@@ -347,6 +347,33 @@ a {
   color: var(--text-muted);
 }
 
+/* ---- Danger zone (project delete) ---- */
+
+.danger-zone {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.danger-zone__delete {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.danger-zone__delete:hover {
+  background: var(--danger);
+  color: var(--bg);
+}
+
+.danger-zone__delete:disabled {
+  opacity: 0.6;
+}
+
 /* ---- Tasks list (grid columns, reusable for other column-style lists) ---- */
 
 .task-grid-header {

@@ -105,6 +105,14 @@ export async function updateProject(
   return data as Project;
 }
 
+// projects.parent_id is `on delete restrict` (see supabase/schema.sql), so deleting
+// a project with sub-projects will fail at the DB level. Callers should pre-check
+// via listChildProjects() and surface a clear message rather than the raw FK error.
+export async function deleteProject(id: string): Promise<void> {
+  const { error } = await supabase.from('projects').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export interface ProjectProgress {
   completed: number;
   total: number;

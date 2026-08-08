@@ -22,6 +22,7 @@ import {
 import {
   computeProjectProgress,
   createProject,
+  deleteProject,
   getProject,
   listChildProjects,
   updateProject,
@@ -97,6 +98,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
 
   const [sortBy, setSortBy] = useState<SortBy>('created_at');
   const [filterBy, setFilterBy] = useState<FilterBy>('all');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   async function refreshProgress() {
     setProgress(await computeProjectProgress(projectId));
@@ -331,6 +333,28 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       setError((e as Error).message);
     } finally {
       setIsAddingChild(false);
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (isDeleting) return;
+    if (childProjects.length > 0) {
+      setError(
+        'This project has sub-projects, which must be deleted or moved out first — the database blocks deleting a project while it still has children.'
+      );
+      return;
+    }
+    if (!window.confirm("Delete this project? Its actions and attached-save links will be deleted too. This can't be undone.")) {
+      return;
+    }
+    setError(null);
+    setIsDeleting(true);
+    try {
+      await deleteProject(projectId);
+      router.push('/projects');
+    } catch (e) {
+      setError((e as Error).message);
+      setIsDeleting(false);
     }
   }
 
@@ -633,6 +657,12 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="danger-zone">
+        <button type="button" className="danger-zone__delete" onClick={handleDeleteProject} disabled={isDeleting}>
+          {isDeleting ? 'Deleting…' : 'Delete project'}
+        </button>
       </div>
 
       {savePickerFor && (
