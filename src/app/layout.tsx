@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { AuthGate } from '@/components/AuthGate';
+import { DrawerProvider } from '@/components/DrawerContext';
 import { NavShell } from '@/components/NavShell';
 import { RegisterServiceWorker } from '@/components/RegisterServiceWorker';
 import './globals.css';
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <RegisterServiceWorker />
         <AuthGate>
-          <NavShell>{children}</NavShell>
+          <DrawerProvider>
+            <NavShell>{children}</NavShell>
+          </DrawerProvider>
         </AuthGate>
       </body>
     </html>

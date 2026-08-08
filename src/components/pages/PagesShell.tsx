@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useDrawer, usePageDrawerContent } from '@/components/DrawerContext';
 import { createPage, listPages, type Page } from '@/lib/pages';
 import { PageEditor } from './PageEditor';
 
@@ -44,10 +45,10 @@ function PageTreeNode({
 
 export function PagesShell({ pageId }: { pageId: string | null }) {
   const router = useRouter();
+  const { closeDrawer } = useDrawer();
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
@@ -69,14 +70,14 @@ export function PagesShell({ pageId }: { pageId: string | null }) {
     setPages((prev) => prev.filter((p) => p.id !== id));
   }
 
-  async function handleNewRootPage() {
+  async function handleNewRootPage(onNavigate: () => void) {
     if (isCreating) return;
     setIsCreating(true);
     setError(null);
     try {
       const page = await createPage({ title: 'Untitled' });
       setPages((prev) => [...prev, page]);
-      setDrawerOpen(false);
+      onNavigate();
       router.push(`/pages/${page.id}`);
     } catch (e) {
       setError((e as Error).message);
@@ -87,29 +88,9 @@ export function PagesShell({ pageId }: { pageId: string | null }) {
 
   const rootPages = pages.filter((p) => !p.parent_id);
 
-  return (
-    <div className="pages-shell">
-      <div className="pages-topbar">
-        <button
-          type="button"
-          className="pages-hamburger"
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open page navigation"
-        >
-          ☰
-        </button>
-        <span className="pages-topbar__title">Notes</span>
-      </div>
-
-      {drawerOpen && <div className="pages-drawer-overlay" onClick={() => setDrawerOpen(false)} />}
-
-      <nav className={`pages-nav${drawerOpen ? ' is-open' : ''}`}>
-        <div className="pages-nav__header">
-          <span className="pages-nav__title">Notes</span>
-          <button type="button" className="pages-nav__close" onClick={() => setDrawerOpen(false)} aria-label="Close">
-            ×
-          </button>
-        </div>
+  function renderTree(onNavigate: () => void) {
+    return (
+      <>
         <div className="pages-tree">
           {loading ? null : rootPages.length === 0 ? (
             <p className="list-empty">No pages yet.</p>
@@ -121,14 +102,27 @@ export function PagesShell({ pageId }: { pageId: string | null }) {
                 pages={pages}
                 activeId={pageId}
                 depth={0}
-                onNavigate={() => setDrawerOpen(false)}
+                onNavigate={onNavigate}
               />
             ))
           )}
         </div>
-        <button type="button" className="pages-nav__new" onClick={handleNewRootPage} disabled={isCreating}>
+        <button type="button" className="pages-nav__new" onClick={() => handleNewRootPage(onNavigate)} disabled={isCreating}>
           {isCreating ? 'Creating…' : '+ New page'}
         </button>
+      </>
+    );
+  }
+
+  usePageDrawerContent(renderTree(closeDrawer));
+
+  return (
+    <div className="pages-shell">
+      <nav className="pages-nav">
+        <div className="pages-nav__header">
+          <span className="pages-nav__title">Notes</span>
+        </div>
+        {renderTree(() => {})}
       </nav>
 
       <div className="pages-main">
@@ -144,7 +138,7 @@ export function PagesShell({ pageId }: { pageId: string | null }) {
         ) : (
           <div className="pages-empty-state">
             <p className="list-empty">Select a page, or create a new one.</p>
-            <button type="button" className="add-form__submit" onClick={handleNewRootPage} disabled={isCreating}>
+            <button type="button" className="add-form__submit" onClick={() => handleNewRootPage(() => {})} disabled={isCreating}>
               {isCreating ? 'Creating…' : '+ New page'}
             </button>
           </div>

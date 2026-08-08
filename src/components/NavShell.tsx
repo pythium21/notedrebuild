@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useDrawer } from '@/components/DrawerContext';
 import { supabase } from '@/lib/supabaseClient';
 
 const NAV_ITEMS = [
@@ -18,6 +19,8 @@ function isActive(pathname: string, href: string) {
 
 export function NavShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { drawerContent, isOpen, openDrawer, closeDrawer } = useDrawer();
+  const activeItem = NAV_ITEMS.find((item) => isActive(pathname, item.href));
 
   return (
     <div className="shell">
@@ -38,6 +41,27 @@ export function NavShell({ children }: { children: React.ReactNode }) {
           Sign out
         </button>
       </aside>
+
+      <div className="mobile-topbar">
+        <button type="button" className="mobile-hamburger" onClick={openDrawer} aria-label="Open menu">
+          ☰
+        </button>
+        <span className="mobile-topbar__title">{activeItem?.label || 'My OS'}</span>
+      </div>
+
+      {isOpen && <div className="mobile-drawer-overlay" onClick={closeDrawer} />}
+
+      <nav className={`mobile-drawer${isOpen ? ' is-open' : ''}`}>
+        <div className="mobile-drawer__header">
+          <span className="mobile-drawer__title">{activeItem?.label || 'My OS'}</span>
+          <button type="button" className="mobile-drawer__close" onClick={closeDrawer} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="mobile-drawer__body">
+          {drawerContent || <p className="list-empty">Nothing here yet.</p>}
+        </div>
+      </nav>
 
       <main className="main">{children}</main>
 
