@@ -49,6 +49,17 @@ export function PageEditor({
   const dirtyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const blockInputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map());
+  const pendingFocusRef = useRef<{ id: string; cursor: 'start' | 'end' } | null>(null);
+
+  function registerBlockRef(id: string, el: HTMLInputElement | HTMLTextAreaElement | null) {
+    if (el) blockInputRefs.current.set(id, el);
+    else blockInputRefs.current.delete(id);
+  }
+
+  function focusBlock(id: string, cursor: 'start' | 'end') {
+    pendingFocusRef.current = { id, cursor };
+  }
 
   async function performSave(): Promise<void> {
     if (!dirtyRef.current) return;
@@ -128,6 +139,21 @@ export function PageEditor({
     });
   }, [blocks]);
 
+  useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
+    const el = blockInputRefs.current.get(pending.id);
+    if (!el) return;
+    pendingFocusRef.current = null;
+    el.focus();
+    const pos = pending.cursor === 'start' ? 0 : el.value.length;
+    try {
+      el.setSelectionRange(pos, pos);
+    } catch {
+      // some input types don't support selection; ignore if not
+    }
+  }, [blocks]);
+
   function handleTitleChange(value: string) {
     setTitle(value);
     titleRef.current = value;
@@ -162,6 +188,53 @@ export function PageEditor({
   function handleDeleteBlock(id: string) {
     const filtered = blocks.filter((b) => b.id !== id);
     commitBlocks(filtered.length > 0 ? filtered : [emptyTextBlock()]);
+  }
+
+  function handleBlockKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, block: Block) {
+    // Let the "/" turn-into menu own the keyboard while it's open for this block.
+    if (menu?.blockId === block.id) return;
+
+    if (e.key === 'Enter') {
+      // Text blocks are multi-line — Shift+Enter inserts a soft line break instead
+      // of creating a new block. Other block types are single-line, so plain
+      // Enter always creates a new block.
+      if (block.type === 'text' && e.shiftKey) return;
+      e.preventDefault();
+
+      const idx = blocks.findIndex((b) => b.id === block.id);
+      const fresh: Block = emptyTextBlock();
+      commitBlocks([...blocks.slice(0, idx + 1), fresh, ...blocks.slice(idx + 1)]);
+      focusBlock(fresh.id, 'start');
+      return;
+    }
+
+    if (e.key === 'Backspace') {
+      const el = e.currentTarget;
+      const isEmpty = !block.text;
+      const atStart = el.selectionStart === 0 && el.selectionEnd === 0;
+      if (!isEmpty || !atStart) return;
+      if (blocks.length <= 1) return; // keep at least one block, matching handleDeleteBlock's floor
+
+      e.preventDefault();
+      const idx = blocks.findIndex((b) => b.id === block.id);
+      const filtered = blocks.filter((b) => b.id !== block.id);
+      commitBlocks(filtered);
+
+      // Find the nearest focusable (non page_link) block, preferring the one
+      // just before the deleted block, falling back to searching outward.
+      const isFocusable = (b: Block | undefined) => b && b.type !== 'page_link';
+      let target: Block | undefined;
+      let cursor: 'start' | 'end' = 'end';
+      for (let i = idx - 1; i >= 0; i--) {
+        if (isFocusable(filtered[i])) { target = filtered[i]; cursor = 'end'; break; }
+      }
+      if (!target) {
+        for (let i = idx; i < filtered.length; i++) {
+          if (isFocusable(filtered[i])) { target = filtered[i]; cursor = 'start'; break; }
+        }
+      }
+      if (target) focusBlock(target.id, cursor);
+    }
   }
 
   async function handleMenuSelect(type: BlockOptionType) {
@@ -287,30 +360,36 @@ export function PageEditor({
           <div key={block.id} className="block-row">
             {block.type === 'text' && (
               <textarea
+                ref={(el) => registerBlockRef(block.id, el)}
                 className="block block--text"
                 rows={1}
                 value={block.text || ''}
                 placeholder="Type '/' for commands"
                 onChange={(e) => handleBlockTextChange(block.id, e.target.value)}
+                onKeyDown={(e) => handleBlockKeyDown(e, block)}
               />
             )}
             {block.type === 'heading' && (
               <input
+                ref={(el) => registerBlockRef(block.id, el)}
                 type="text"
                 className="block block--heading"
                 value={block.text || ''}
                 placeholder="Heading"
                 onChange={(e) => handleBlockTextChange(block.id, e.target.value)}
+                onKeyDown={(e) => handleBlockKeyDown(e, block)}
               />
             )}
             {block.type === 'checklist' && (
               <label className="block block--checklist">
                 <input type="checkbox" checked={!!block.checked} onChange={() => handleToggleChecked(block.id)} />
                 <input
+                  ref={(el) => registerBlockRef(block.id, el)}
                   type="text"
                   value={block.text || ''}
                   placeholder="To-do"
                   onChange={(e) => handleBlockTextChange(block.id, e.target.value)}
+                  onKeyDown={(e) => handleBlockKeyDown(e, block)}
                 />
               </label>
             )}
@@ -320,10 +399,12 @@ export function PageEditor({
                   •
                 </span>
                 <input
+                  ref={(el) => registerBlockRef(block.id, el)}
                   type="text"
                   value={block.text || ''}
                   placeholder="List item"
                   onChange={(e) => handleBlockTextChange(block.id, e.target.value)}
+                  onKeyDown={(e) => handleBlockKeyDown(e, block)}
                 />
               </div>
             )}
