@@ -104,3 +104,9 @@ export async function createSave(input: {
   if (error) throw error;
   return data as Save;
 }
+
+export async function updateSaveTitle(id: string, title: string): Promise<Save> {
+  const { data, error } = await supabase.from('saves').update({ title }).eq('id', id).select().single();
+  if (error) throw error;
+  return data as Save;
+}

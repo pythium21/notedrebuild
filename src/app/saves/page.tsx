@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { type Action, listActionsForProject } from '@/lib/actions';
 import { attachSave } from '@/lib/projectSaves';
 import { listAllProjects, type Project } from '@/lib/projects';
-import { createSave, listSaves, PLATFORMS, type Platform, type Save } from '@/lib/saves';
+import { createSave, listSaves, updateSaveTitle, PLATFORMS, type Platform, type Save } from '@/lib/saves';
 import { Picker } from '@/components/Picker';
 
 type ActionOrWhole = Action | { id: '__whole__'; title: string };
@@ -17,6 +17,8 @@ export default function SavesPage() {
   const [platform, setPlatform] = useState<Platform | ''>('');
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isRefreshingTitles, setIsRefreshingTitles] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [linkingSaveId, setLinkingSaveId] = useState<string | null>(null);
@@ -72,6 +74,47 @@ export default function SavesPage() {
     }
   }
 
+  // One-time backfill for saves created before the link-preview title fetch
+  // existed (D-015) — those rows have the raw URL baked in as their title.
+  // Only touches saves whose title still exactly matches their URL, so a
+  // manually-typed title (even one that happens to look URL-ish) is never
+  // overwritten. Sequential, not parallel — this is a rare manual action,
+  // not something that needs to be fast, and it keeps server load low.
+  async function handleRefreshTitles() {
+    if (isRefreshingTitles) return;
+    const stale = saves.filter((s) => s.title === s.url);
+    if (stale.length === 0) return;
+    setError(null);
+    setIsRefreshingTitles(true);
+    setRefreshProgress({ done: 0, total: stale.length });
+    let failures = 0;
+    for (let i = 0; i < stale.length; i++) {
+      const save = stale[i];
+      try {
+        const res = await fetch('/api/link-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: save.url }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.title) {
+            const updated = await updateSaveTitle(save.id, body.title);
+            setSaves((prev) => prev.map((s) => (s.id === save.id ? updated : s)));
+          }
+        }
+      } catch {
+        failures++;
+      }
+      setRefreshProgress({ done: i + 1, total: stale.length });
+    }
+    setIsRefreshingTitles(false);
+    setRefreshProgress(null);
+    if (failures > 0) {
+      setError(`Refreshed titles, but ${failures} of ${stale.length} link(s) couldn't be reached (kept the URL as their title).`);
+    }
+  }
+
   async function handleOpenLinkPicker(save: Save) {
     setError(null);
     try {
@@ -122,6 +165,8 @@ export default function SavesPage() {
     ...projectActions,
   ];
 
+  const staleTitleCount = saves.filter((s) => s.title === s.url).length;
+
   return (
     <div>
       <h1 className="page-title">Saves</h1>
@@ -154,6 +199,19 @@ export default function SavesPage() {
       </form>
 
       {error && <p className="auth-error">{error}</p>}
+
+      {!loading && staleTitleCount > 0 && (
+        <button
+          type="button"
+          className="item__action"
+          onClick={handleRefreshTitles}
+          disabled={isRefreshingTitles}
+        >
+          {isRefreshingTitles
+            ? `Refreshing titles… (${refreshProgress?.done ?? 0}/${refreshProgress?.total ?? staleTitleCount})`
+            : `Refresh ${staleTitleCount} link title${staleTitleCount === 1 ? '' : 's'} showing as raw URLs`}
+        </button>
+      )}
 
       {loading ? null : saves.length === 0 ? (
         <p className="list-empty">No saves yet — add a link above.</p>

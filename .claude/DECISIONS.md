@@ -14,6 +14,8 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Fetching server-side is the only option that reliably avoids CORS regardless of the target site's own CORS policy. The private-host guard costs little and closes an obvious self-inflicted SSRF footgun (a share intent or pasted URL pointed at Railway's internal network) even though the realistic threat model for a single-user personal app is low. Both title-less code paths still fall back to the raw URL if the fetch fails or times out — this is a best-effort backfill, not a guarantee.
 
+**Update (2026-08-08, same day):** This only fixes titles going forward — rows created before this shipped still had the URL baked into `title` from `createSave()`'s old fallback, which read as "the fix didn't work" when reported against an old row. Added a "Refresh N link titles showing as raw URLs" button on `/saves` (`src/lib/saves.ts`'s `updateSaveTitle()` + a `handleRefreshTitles()` loop in `src/app/saves/page.tsx`) that only touches rows where `title === url` exactly — sequential (not parallel, since this is a rare manual action, not something latency-sensitive), calls the same `/api/link-preview` route per row, best-effort per-row (one failure doesn't stop the rest). Confirmed against the live deployment that the underlying fetch genuinely works for LinkedIn (initially suspected as blocked by anti-scraping — it isn't; two throwaway test URLs that happened to be invalid/404 were the actual cause of that suspicion).
+
 **Status:** Active.
 
 ---
