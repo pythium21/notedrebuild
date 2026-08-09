@@ -16,7 +16,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Both are the smallest change that closes the gap without speculative complexity — no bulk-actions, no "mark all read," no archive-vs-delete distinction (unlike D-016's checklist items, saves have no completion history worth preserving, so a hard delete is fine here).
 
-**Status:** Active. Schema change (`saves.read`) pending manual application in the Supabase SQL editor (see supabase/schema.sql).
+**Status:** Active. Schema change (`saves.read`) applied manually in the Supabase SQL editor, confirmed by user 2026-08-09.
 
 ---
 

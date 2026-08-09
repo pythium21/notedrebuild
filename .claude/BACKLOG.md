@@ -10,7 +10,7 @@ All open work. **Active** is flat-ranked by priority (top = next). **Horizon** i
 4. Verify `saves` table constraints against the live Supabase dashboard (NOT NULL / CHECK on `platform`, `title`) — only column existence was confirmed via anon-key PostgREST probing when the `/saves` route was built (DECISIONS.md D-003); RLS blocked every insert attempt before a constraint violation could surface, so those details are currently assumed to match the tasks/projects convention rather than confirmed.
 5. Fix `manifest.json`'s `share_target` enctype — browser console warns it defaults to `application/x-www-form-urlencoded`; verify the `/share-target` route's expected content type and set `enctype` explicitly, then reinstall the PWA to pick up the manifest change.
 6. Daily Checklist (DECISIONS.md D-016): schema applied 2026-08-09 — verify the checklist card on `/tasks` end-to-end on device (add, check/uncheck + refresh persistence, reorder, edit, archive-keeps-history).
-7. Saves delete + read toggle (DECISIONS.md D-017): apply `alter table saves add column read boolean not null default false` manually in the Supabase SQL editor (see supabase/schema.sql), then verify on device (delete removes a row, read checkbox persists across refresh).
+7. Saves delete + read toggle (DECISIONS.md D-017): schema applied 2026-08-09 — verify on device (delete removes a row, read checkbox persists across refresh).
 
 ## Tasks
 
