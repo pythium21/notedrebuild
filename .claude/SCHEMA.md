@@ -65,7 +65,7 @@ platform	text not null default 'Websites'	one of: YouTube · Articles · LinkedI
 date	date, nullable	confirmed present live; not part of the original ask (which expected a `notes` column instead — see below) and not currently surfaced in the UI; left null on insert
 Reconciliation note: the original assumption going into this table was `notes` (text, nullable) instead of `date`. Live probing confirmed `notes` does NOT exist on the table and `date` does — `src/lib/saves.ts` was written to match the live table, not the assumption. NOT NULL / CHECK constraint details beyond the standard convention (e.g. whether `platform` has a DB-level CHECK restricting it to the six values, whether `title` truly rejects null) could not be verified via the anon key — every insert attempt during probing was rejected by the RLS policy before any constraint violation could surface, regardless of which columns were populated. Treated as matching the tasks/projects convention (four owner-scoped RLS policies) until proven otherwise from the dashboard.
 checklist_items
-Daily Checklist habit list (DECISIONS.md D-016) — a fully separate system from `tasks`. Standard convention columns (`id`, `user_id`, `created_at`) plus:
+Daily Checklist habit list (DECISIONS.md D-016) — a fully separate system from `tasks`. Confirmed live 2026-08-09 (applied manually via the Supabase SQL editor, both checklist tables and their RLS policies). Standard convention columns (`id`, `user_id`, `created_at`) plus:
 Column	Type	Notes
 title	text not null	
 sort_order	int not null default 0	drives list order; the UI renumbers rows 0..n-1 on reorder, self-healing duplicates

@@ -20,7 +20,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 Note: one `src/lib/checklist.ts` module covers both tables (a deliberate exception to one-module-per-table — completions are meaningless outside the checklist feature, mirroring how `project_saves` got its own module only because multiple pages use it). Data access uses the browser client + RLS like `tasks.ts` — NOT `getSupabaseService()`, which stays confined to the share-target route per D-009.
 
-**Status:** Active. Schema pending manual application in the Supabase SQL editor (see supabase/schema.sql).
+**Status:** Active. Schema applied manually in the Supabase SQL editor, confirmed by user 2026-08-09 (see supabase/schema.sql). On-device verification tracked in BACKLOG.md.
 
 ---
 
