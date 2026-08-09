@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
+  createPage,
   createSubPage,
   deletePage,
   emptyTextBlock,
@@ -13,9 +14,27 @@ import {
   type Block,
   type Page,
 } from '@/lib/pages';
+import { BreadcrumbMenu } from '@/components/BreadcrumbMenu';
 import { BlockMenu, type BlockOptionType } from './BlockMenu';
 
 const SAVE_DEBOUNCE_MS = 800;
+
+// Walks parent_id from `page` up to the root, root-first, excluding `page`
+// itself. `allPages` is the full flat list for the signed-in user (already
+// RLS-scoped), so no extra fetch is needed to build the trail.
+function getAncestors(page: Page, allPages: Page[]): Page[] {
+  const chain: Page[] = [];
+  const seen = new Set<string>([page.id]);
+  let parentId = page.parent_id;
+  while (parentId && !seen.has(parentId)) {
+    const parent = allPages.find((p) => p.id === parentId);
+    if (!parent) break;
+    seen.add(parent.id);
+    chain.unshift(parent);
+    parentId = parent.parent_id;
+  }
+  return chain;
+}
 
 export function PageEditor({
   pageId,
@@ -42,6 +61,8 @@ export function PageEditor({
   const [menu, setMenu] = useState<{ blockId: string; mode: 'convert' | 'insert-after' } | null>(null);
   const [creatingSubPage, setCreatingSubPage] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [breadcrumbOpen, setBreadcrumbOpen] = useState(false);
+  const [creatingSibling, setCreatingSibling] = useState(false);
 
   const titleRef = useRef('');
   const emojiRef = useRef('');
@@ -107,6 +128,7 @@ export function PageEditor({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setBreadcrumbOpen(false);
     getPage(pageId)
       .then((p) => {
         if (cancelled) return;
@@ -295,6 +317,22 @@ export function PageEditor({
     }
   }
 
+  async function handleCreateSibling() {
+    if (creatingSibling || !page) return;
+    setCreatingSibling(true);
+    setError(null);
+    try {
+      const sibling = await createPage({ title: 'Untitled', parent_id: page.parent_id });
+      onPageCreated(sibling);
+      setBreadcrumbOpen(false);
+      router.push(`/pages/${sibling.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCreatingSibling(false);
+    }
+  }
+
   async function handleDeletePage() {
     if (deleting || !page) return;
     if (!window.confirm(`Delete "${page.title}"?`)) return;
@@ -315,16 +353,59 @@ export function PageEditor({
   if (error && !page) return <p className="auth-error">{error}</p>;
   if (!page) return null;
 
-  const parent = page.parent_id ? allPages.find((p) => p.id === page.parent_id) : null;
+  const ancestors = getAncestors(page, allPages);
+  const siblings = allPages.filter((p) => p.parent_id === page.parent_id && p.id !== page.id);
 
   return (
     <div className="page-editor" ref={editorRef}>
-      {parent && (
-        <Link href={`/pages/${parent.id}`} className="page-editor__parent-link">
-          ← {parent.emoji ? `${parent.emoji} ` : ''}
-          {parent.title}
+      <nav className="breadcrumb">
+        <Link href="/pages" className="breadcrumb__link">
+          Notes
         </Link>
-      )}
+        {ancestors.map((ancestor) => (
+          <span key={ancestor.id} className="breadcrumb__segment">
+            <span className="breadcrumb__sep">/</span>
+            <Link href={`/pages/${ancestor.id}`} className="breadcrumb__link">
+              {ancestor.emoji ? `${ancestor.emoji} ` : ''}
+              {ancestor.title}
+            </Link>
+          </span>
+        ))}
+        <span className="breadcrumb__segment breadcrumb__segment--current">
+          <span className="breadcrumb__sep">/</span>
+          <button type="button" className="breadcrumb__current" onClick={() => setBreadcrumbOpen((o) => !o)}>
+            {emoji ? `${emoji} ` : ''}
+            {title || 'Untitled'} ▾
+          </button>
+          {breadcrumbOpen && (
+            <BreadcrumbMenu onClose={() => setBreadcrumbOpen(false)}>
+              {siblings.length === 0 ? (
+                <p className="breadcrumb-menu__empty">No other pages here.</p>
+              ) : (
+                siblings.map((sibling) => (
+                  <Link
+                    key={sibling.id}
+                    href={`/pages/${sibling.id}`}
+                    className="breadcrumb-menu__item"
+                    onClick={() => setBreadcrumbOpen(false)}
+                  >
+                    {sibling.emoji ? `${sibling.emoji} ` : '📄 '}
+                    {sibling.title}
+                  </Link>
+                ))
+              )}
+              <button
+                type="button"
+                className="breadcrumb-menu__item breadcrumb-menu__item--action"
+                onClick={handleCreateSibling}
+                disabled={creatingSibling}
+              >
+                {creatingSibling ? 'Creating…' : '+ New page'}
+              </button>
+            </BreadcrumbMenu>
+          )}
+        </span>
+      </nav>
 
       {error && <p className="auth-error">{error}</p>}
 

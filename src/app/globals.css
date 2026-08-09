@@ -1092,11 +1092,6 @@ a {
   max-width: 640px;
 }
 
-.page-editor__parent-link {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
 .page-editor__header {
   display: flex;
   align-items: center;
@@ -1300,6 +1295,119 @@ textarea.block--text {
     top: auto;
     bottom: 0;
     z-index: 41;
+    border-radius: 16px 16px 0 0;
+    max-height: 60vh;
+    overflow-y: auto;
+    box-shadow: none;
+  }
+}
+
+/* ---- Breadcrumb trail + dropdown (desktop dropdown / mobile bottom sheet) ---- */
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.breadcrumb__link {
+  color: var(--text-muted);
+}
+
+.breadcrumb__link:hover {
+  color: var(--text);
+}
+
+.breadcrumb__segment {
+  display: inline-flex;
+  align-items: center;
+}
+
+.breadcrumb__segment--current {
+  position: relative;
+}
+
+.breadcrumb__sep {
+  margin: 0 0.4rem;
+  color: var(--text-muted);
+}
+
+.breadcrumb__current {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.breadcrumb-menu-scrim {
+  display: none;
+}
+
+.breadcrumb-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.breadcrumb-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  background: none;
+  border-radius: var(--radius);
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.breadcrumb-menu__item:hover {
+  background: var(--bg-elevated);
+}
+
+.breadcrumb-menu__item--action {
+  color: var(--text-muted);
+}
+
+.breadcrumb-menu__empty {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 767px) {
+  .breadcrumb-menu-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 40;
+  }
+
+  .breadcrumb-menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    z-index: 41;
+    max-width: none;
     border-radius: 16px 16px 0 0;
     max-height: 60vh;
     overflow-y: auto;
