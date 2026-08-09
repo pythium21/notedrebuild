@@ -62,6 +62,55 @@ function isRedditHost(hostname: string): boolean {
   return REDDIT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
 }
 
+// Reddit's API rules require a descriptive User-Agent, not a browser one.
+const REDDIT_API_UA = 'web:my-os-link-preview:v1.0 (single-user personal app)';
+
+// Reddit's WAF blocks ALL anonymous requests from datacenter IPs (www, old.,
+// api. subdomains alike) — its block page says to use a developer token. A
+// free "script" app's client-credentials token unlocks oauth.reddit.com,
+// which is exempt. Without credentials configured this returns null and the
+// anonymous paths below run as before (working only from unblocked IPs).
+let redditToken: { value: string; expiresAt: number } | null = null;
+
+async function getRedditToken(): Promise<string | null> {
+  const clientId = process.env.REDDIT_CLIENT_ID || '';
+  const clientSecret = process.env.REDDIT_CLIENT_SECRET || '';
+  if (!clientId || !clientSecret) return null;
+  if (redditToken && Date.now() < redditToken.expiresAt) return redditToken.value;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://www.reddit.com/api/v1/access_token', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': REDDIT_API_UA,
+      },
+      body: 'grant_type=client_credentials',
+    });
+    if (!res.ok) {
+      console.log('[linkPreview] reddit token fetch not ok:', res.status);
+      return null;
+    }
+    const data = await res.json();
+    if (typeof data?.access_token !== 'string') {
+      console.log('[linkPreview] reddit token response missing access_token');
+      return null;
+    }
+    const ttlSeconds = typeof data.expires_in === 'number' ? data.expires_in : 3600;
+    redditToken = { value: data.access_token, expiresAt: Date.now() + (ttlSeconds - 60) * 1000 };
+    return redditToken.value;
+  } catch (err) {
+    console.log('[linkPreview] reddit token fetch failed:', err);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Reddit's share short-links (`/r/<sub>/s/<id>`) are redirect stubs to the
 // canonical `/r/<sub>/comments/<id>/<slug>/` URL, and the canonical page is a
 // client-rendered SPA shell for non-browser fetches — its initial HTML just
@@ -69,9 +118,9 @@ function isRedditHost(hostname: string): boolean {
 // accepts as "usable" since it doesn't match any bot-wall junk pattern.
 // Appending `.json` to the short link doesn't work either: the redirect drops
 // the suffix and lands on HTML. So: resolve the redirect first, then hit
-// Reddit's public `.json` API on the canonical URL, and if that fails, fall
+// Reddit's `.json` API on the canonical URL, and if that fails, fall
 // back to humanizing the title slug embedded in the canonical path itself.
-async function resolveRedditCanonical(url: URL): Promise<URL> {
+async function resolveRedditCanonical(url: URL, token: string | null): Promise<URL> {
   if (!/\/s\//.test(url.pathname)) return url;
 
   const controller = new AbortController();
@@ -80,7 +129,9 @@ async function resolveRedditCanonical(url: URL): Promise<URL> {
     const res = await fetch(url.toString(), {
       signal: controller.signal,
       redirect: 'manual',
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)' },
+      headers: token
+        ? { 'User-Agent': REDDIT_API_UA, Authorization: `Bearer ${token}` }
+        : { 'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)' },
     });
     const location = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && location) {
@@ -108,10 +159,14 @@ function redditSlugTitle(canonical: URL): string | null {
 }
 
 async function fetchRedditTitle(url: URL): Promise<string | null> {
-  const canonical = await resolveRedditCanonical(url);
+  const token = await getRedditToken();
+  const canonical = await resolveRedditCanonical(url, token);
   const jsonUrl = new URL(canonical.toString());
+  // With a token, the API host (oauth.reddit.com) serves the same .json
+  // endpoints and is exempt from the datacenter-IP WAF block.
+  if (token) jsonUrl.hostname = 'oauth.reddit.com';
   jsonUrl.pathname = jsonUrl.pathname.replace(/\/?$/, '') + '.json';
-  jsonUrl.search = '';
+  jsonUrl.search = 'raw_json=1';
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -119,10 +174,12 @@ async function fetchRedditTitle(url: URL): Promise<string | null> {
     const res = await fetch(jsonUrl.toString(), {
       signal: controller.signal,
       redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)',
-        Accept: 'application/json',
-      },
+      headers: token
+        ? { 'User-Agent': REDDIT_API_UA, Authorization: `Bearer ${token}`, Accept: 'application/json' }
+        : {
+            'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)',
+            Accept: 'application/json',
+          },
     });
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok || !contentType.includes('json')) {
