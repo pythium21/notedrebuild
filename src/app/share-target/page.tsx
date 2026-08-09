@@ -13,6 +13,45 @@ function resolveSharedUrl(url: string | null, text: string | null): string {
   return match ? match[0] : '';
 }
 
+function isRedditUrl(rawUrl: string): boolean {
+  try {
+    const host = new URL(rawUrl).hostname;
+    return /(^|\.)reddit\.com$|(^|\.)redd\.it$/i.test(host);
+  } catch {
+    return false;
+  }
+}
+
+// Reddit's WAF blocks every server/datacenter fetch (see DECISIONS.md D-015),
+// but this page runs on the user's own phone — the one network Reddit serves.
+// Whether the browser can *read* the response hinges entirely on Reddit
+// sending CORS headers; if it doesn't, the fetch throws immediately and we
+// report the outcome so Railway logs settle the question. Two steps because
+// appending .json to a /s/ short link doesn't survive its redirect: follow
+// the redirect first (res.url = canonical), then fetch canonical .json.
+async function tryClientRedditTitle(
+  sharedUrl: string,
+): Promise<{ title: string | null; note: string }> {
+  try {
+    const res = await fetch(sharedUrl, { redirect: 'follow' });
+    const canonical = res.url || sharedUrl;
+    const jsonUrl = new URL(canonical);
+    jsonUrl.pathname = jsonUrl.pathname.replace(/\/?$/, '') + '.json';
+    jsonUrl.search = 'raw_json=1';
+
+    const jsonRes = await fetch(jsonUrl.toString(), { headers: { Accept: 'application/json' } });
+    if (!jsonRes.ok) return { title: null, note: `client-json-status-${jsonRes.status}` };
+    const data = await jsonRes.json();
+    const rawTitle = data?.[0]?.data?.children?.[0]?.data?.title;
+    if (typeof rawTitle === 'string' && rawTitle.trim()) {
+      return { title: rawTitle.trim(), note: 'client-json-ok' };
+    }
+    return { title: null, note: 'client-json-shape' };
+  } catch (e) {
+    return { title: null, note: `client-fetch-failed: ${(e as Error).message}` };
+  }
+}
+
 type Status = { kind: 'saving' | 'done' | 'error'; message: string };
 
 function ShareTargetInner() {
@@ -38,12 +77,26 @@ function ShareTargetInner() {
       return;
     }
 
-    fetch('/api/share-target', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // `text` is diagnostic-only for now — not used in title/URL resolution server-side.
-      body: JSON.stringify({ url: sharedUrl, title: title || undefined, text: text || undefined }),
-    })
+    const needsRedditTitle = isRedditUrl(sharedUrl) && (!title || URL_PATTERN.test(title));
+    const clientTitlePromise = needsRedditTitle
+      ? tryClientRedditTitle(sharedUrl)
+      : Promise.resolve({ title: null as string | null, note: 'not-attempted' });
+
+    clientTitlePromise
+      .then((clientResult) =>
+        fetch('/api/share-target', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // `text` and `clientNote` are diagnostic-only — not used in
+          // title/URL resolution server-side.
+          body: JSON.stringify({
+            url: sharedUrl,
+            title: title || clientResult.title || undefined,
+            text: text || undefined,
+            clientNote: clientResult.note,
+          }),
+        }),
+      )
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || 'Save failed');

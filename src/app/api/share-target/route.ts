@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     title: body.title,
     text: body.text,
     url: body.url,
+    clientNote: body.clientNote,
   });
 
   const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
