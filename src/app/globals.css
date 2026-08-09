@@ -730,11 +730,6 @@ a {
   gap: 1rem;
 }
 
-.project-detail__back {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
 .project-detail__name {
   font-size: 1.4rem;
   font-weight: 700;
@@ -1383,6 +1378,10 @@ textarea.block--text {
 
 .breadcrumb-menu__item--action {
   color: var(--text-muted);
+}
+
+.breadcrumb-menu__item--project {
+  justify-content: space-between;
 }
 
 .breadcrumb-menu__empty {

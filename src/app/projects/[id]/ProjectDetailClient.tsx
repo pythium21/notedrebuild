@@ -24,6 +24,7 @@ import {
   createProject,
   deleteProject,
   getProject,
+  listAllProjects,
   listChildProjects,
   updateProject,
   type Project,
@@ -32,6 +33,7 @@ import {
   type ProjectStatus,
 } from '@/lib/projects';
 import { listSaves, type Save } from '@/lib/saves';
+import { BreadcrumbMenu } from '@/components/BreadcrumbMenu';
 import { Picker } from '@/components/Picker';
 
 const STATUSES: ProjectStatus[] = ['active', 'on_hold', 'done', 'archived'];
@@ -100,11 +102,15 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   const [filterBy, setFilterBy] = useState<FilterBy>('all');
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [breadcrumbOpen, setBreadcrumbOpen] = useState(false);
+
   async function refreshProgress() {
     setProgress(await computeProjectProgress(projectId));
   }
 
   useEffect(() => {
+    setBreadcrumbOpen(false);
     Promise.all([
       getProject(projectId),
       listChildProjects(projectId),
@@ -186,6 +192,18 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
       setError((e as Error).message);
     } finally {
       setIsAddingNotes(false);
+    }
+  }
+
+  async function openBreadcrumbMenu() {
+    setError(null);
+    try {
+      if (allProjects.length === 0) {
+        setAllProjects(await listAllProjects());
+      }
+      setBreadcrumbOpen(true);
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
 
@@ -372,9 +390,44 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
 
   return (
     <div className="project-detail">
-      <Link href="/projects" className="project-detail__back">
-        ← Projects
-      </Link>
+      <nav className="breadcrumb">
+        <Link href="/projects" className="breadcrumb__link">
+          Projects
+        </Link>
+        <span className="breadcrumb__segment breadcrumb__segment--current">
+          <span className="breadcrumb__sep">/</span>
+          <button
+            type="button"
+            className="breadcrumb__current"
+            onClick={() => (breadcrumbOpen ? setBreadcrumbOpen(false) : openBreadcrumbMenu())}
+          >
+            {project.name} ▾
+          </button>
+          {breadcrumbOpen && (
+            <BreadcrumbMenu onClose={() => setBreadcrumbOpen(false)}>
+              {allProjects.filter((p) => p.id !== project.id).length === 0 ? (
+                <p className="breadcrumb-menu__empty">No other projects yet.</p>
+              ) : (
+                allProjects
+                  .filter((p) => p.id !== project.id)
+                  .map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/projects/${p.id}`}
+                      className="breadcrumb-menu__item breadcrumb-menu__item--project"
+                      onClick={() => setBreadcrumbOpen(false)}
+                    >
+                      <span className="breadcrumb-menu__item-label">{p.name}</span>
+                      <span className={`badge${p.status ? ` badge--status-${p.status}` : ' badge--unset'}`}>
+                        {p.status ? STATUS_LABELS[p.status] : 'unset'}
+                      </span>
+                    </Link>
+                  ))
+              )}
+            </BreadcrumbMenu>
+          )}
+        </span>
+      </nav>
 
       {error && <p className="auth-error">{error}</p>}
 
