@@ -1302,3 +1302,28 @@ textarea.block--text {
     box-shadow: none;
   }
 }
+
+/* ---- Daily Checklist (own card so it never reads as part of the tasks table) ---- */
+
+.daily-checklist {
+  margin-top: 32px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.daily-checklist__title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.daily-checklist__hint {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.daily-checklist .item {
+  background: var(--bg);
+}

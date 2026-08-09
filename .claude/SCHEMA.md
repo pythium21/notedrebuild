@@ -64,6 +64,20 @@ title	text not null	if left blank (manual add form, or an Android share payload 
 platform	text not null default 'Websites'	one of: YouTube · Articles · LinkedIn · Facebook · Reddit · Websites — auto-detected from the URL host (detectPlatform()), overridable via the form's select
 date	date, nullable	confirmed present live; not part of the original ask (which expected a `notes` column instead — see below) and not currently surfaced in the UI; left null on insert
 Reconciliation note: the original assumption going into this table was `notes` (text, nullable) instead of `date`. Live probing confirmed `notes` does NOT exist on the table and `date` does — `src/lib/saves.ts` was written to match the live table, not the assumption. NOT NULL / CHECK constraint details beyond the standard convention (e.g. whether `platform` has a DB-level CHECK restricting it to the six values, whether `title` truly rejects null) could not be verified via the anon key — every insert attempt during probing was rejected by the RLS policy before any constraint violation could surface, regardless of which columns were populated. Treated as matching the tasks/projects convention (four owner-scoped RLS policies) until proven otherwise from the dashboard.
+checklist_items
+Daily Checklist habit list (DECISIONS.md D-016) — a fully separate system from `tasks`. Standard convention columns (`id`, `user_id`, `created_at`) plus:
+Column	Type	Notes
+title	text not null	
+sort_order	int not null default 0	drives list order; the UI renumbers rows 0..n-1 on reorder, self-healing duplicates
+archived	boolean not null default false	soft delete only — archiving preserves the row and its completion history for future progress/streak views; the UI never hard-deletes
+RLS: one `owner_access` policy `for all using/with check (user_id = auth.uid())` — a deliberate compact variant of the usual four-policy convention.
+checklist_completions
+Per-day completion log for checklist items (DECISIONS.md D-016). One row per item per local calendar day; checking inserts, unchecking deletes — history accumulates. No `user_id` column — ownership is transitive through `item_id` → `checklist_items` (same pattern as `project_saves`). The second table (after `pages`) with a timestamp column beyond `created_at` — it has `completed_at` and no `created_at`.
+Column	Type	Notes
+item_id	uuid not null	references checklist_items(id) on delete cascade
+date	date not null	the user's LOCAL calendar date, computed client-side (`localToday()` in src/lib/checklist.ts) — not UTC. `unique (item_id, date)` — one completion per item per day; the client upserts with ignoreDuplicates
+completed_at	timestamptz not null default now()	
+RLS: one `owner_access` policy `for all`, scoped via `item_id in (select id from checklist_items where user_id = auth.uid())`.
 Planned tables (not yet created)
 
 The retired vanilla repo's SCHEMA.md documents the full 13-route schema (goals, habits, expenses, workouts, journal, contacts, content, resources, vault). `pages` was the last one parked there and has now been built (DECISIONS.md D-012, see above) — remaining tables are added here one at a time, when their route is actually built — copy the section from the retired repo's SCHEMA.md at that point, don't pre-create tables.

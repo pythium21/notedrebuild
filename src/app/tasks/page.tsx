@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { DailyChecklist } from '@/components/DailyChecklist';
 import { getActionByLinkedTaskId, setActionCompleted } from '@/lib/actions';
 import {
   createTask,
@@ -265,6 +266,8 @@ export default function TasksPage() {
           )}
         </div>
       )}
+
+      <DailyChecklist />
     </div>
   );
 }

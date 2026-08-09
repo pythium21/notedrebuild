@@ -224,3 +224,52 @@ create policy "project_saves_delete_own" on public.project_saves
 -- ---------------------------------------------------------------------------
 
 alter table public.actions add column if not exists due_date date;
+
+-- ---------------------------------------------------------------------------
+-- Daily Checklist (DECISIONS.md D-016)
+--
+-- To be applied manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule — this documents the statements, it
+-- wasn't executed by Claude Code. checklist_completions has no user_id;
+-- ownership is transitive through item_id -> checklist_items (same pattern
+-- as project_saves). Single for-all owner_access policy per table (a
+-- deliberate, more compact variant of the usual four-policy convention).
+-- ---------------------------------------------------------------------------
+
+create table if not exists checklist_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  title text not null,
+  sort_order int not null default 0,
+  archived boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists checklist_completions (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references checklist_items(id) on delete cascade,
+  date date not null,
+  completed_at timestamptz not null default now(),
+  unique (item_id, date)
+);
+
+alter table checklist_items enable row level security;
+alter table checklist_completions enable row level security;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'checklist_items' and policyname = 'owner_access') then
+    create policy owner_access on checklist_items
+      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'checklist_completions' and policyname = 'owner_access') then
+    create policy owner_access on checklist_completions
+      for all using (
+        item_id in (select id from checklist_items where user_id = auth.uid())
+      ) with check (
+        item_id in (select id from checklist_items where user_id = auth.uid())
+      );
+  end if;
+end $$;

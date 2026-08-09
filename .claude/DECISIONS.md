@@ -6,6 +6,24 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-016 · Daily Checklist is a separate system from Tasks (2026-08-09)
+
+**Context:** Recurring personal habits (gym, water, supplements) need a daily-reset checklist with historical completion tracking for future progress/streak views. Tasks are one-off/ad hoc — bolting a `recurring` flag onto `tasks` would conflate two lifecycles (a task is done once; a habit is done again every day) and leave no natural home for per-day history.
+
+**Decision:** Two new tables, fully separate from `tasks` (which is untouched):
+- `checklist_items` — the persistent list (`id`, `user_id`, `title`, `sort_order`, `archived`, `created_at`).
+- `checklist_completions` — per-day completion log (`id`, `item_id`, `date`, `completed_at`, `unique (item_id, date)`). Checking inserts a row, unchecking deletes it — a boolean on the item would lose history.
+- **Reset:** local calendar day (client-computed local date, not UTC, not a rolling 24h window) — simplest, avoids timezone edge cases.
+- **Deletion:** archive only (`archived = true`) — completion history is preserved for the future streak view; the UI confirms before archiving and never hard-deletes.
+- **Placement:** `src/components/DailyChecklist.tsx` is fully standalone (own `useDailyChecklist` hook, own `src/lib/checklist.ts` data module, no Tasks imports) — embedded in `/tasks` as its own labeled card for now, relocatable to Dashboard/Today by moving one render call.
+- **Scope:** this pass is data model + CRUD UI only. No streak/progress view, no push notifications (both → BACKLOG.md).
+
+Note: one `src/lib/checklist.ts` module covers both tables (a deliberate exception to one-module-per-table — completions are meaningless outside the checklist feature, mirroring how `project_saves` got its own module only because multiple pages use it). Data access uses the browser client + RLS like `tasks.ts` — NOT `getSupabaseService()`, which stays confined to the share-target route per D-009.
+
+**Status:** Active. Schema pending manual application in the Supabase SQL editor (see supabase/schema.sql).
+
+---
+
 ## D-015 · Save titles are backfilled via a server-side link-preview fetch when none is supplied (2026-08-08)
 
 **Context:** Saves created without an explicit title — the manual add form's title field is optional, and many Android share-sheet sources don't populate a title either — defaulted to showing the raw cleaned URL as the title (`src/lib/saves.ts`'s `createSave()`, `/api/share-target`'s insert). Reported as a real usability problem: the list showed unreadable link text instead of anything indicating what was actually saved (e.g. a YouTube video's real title).
