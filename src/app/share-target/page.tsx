@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const URL_PATTERN = /https?:\/\/\S+/i;
@@ -13,51 +13,16 @@ function resolveSharedUrl(url: string | null, text: string | null): string {
   return match ? match[0] : '';
 }
 
-function isRedditUrl(rawUrl: string): boolean {
-  try {
-    const host = new URL(rawUrl).hostname;
-    return /(^|\.)reddit\.com$|(^|\.)redd\.it$/i.test(host);
-  } catch {
-    return false;
-  }
-}
-
-// Reddit's WAF blocks every server/datacenter fetch (see DECISIONS.md D-015),
-// but this page runs on the user's own phone — the one network Reddit serves.
-// Whether the browser can *read* the response hinges entirely on Reddit
-// sending CORS headers; if it doesn't, the fetch throws immediately and we
-// report the outcome so Railway logs settle the question. Two steps because
-// appending .json to a /s/ short link doesn't survive its redirect: follow
-// the redirect first (res.url = canonical), then fetch canonical .json.
-async function tryClientRedditTitle(
-  sharedUrl: string,
-): Promise<{ title: string | null; note: string }> {
-  try {
-    const res = await fetch(sharedUrl, { redirect: 'follow' });
-    const canonical = res.url || sharedUrl;
-    const jsonUrl = new URL(canonical);
-    jsonUrl.pathname = jsonUrl.pathname.replace(/\/?$/, '') + '.json';
-    jsonUrl.search = 'raw_json=1';
-
-    const jsonRes = await fetch(jsonUrl.toString(), { headers: { Accept: 'application/json' } });
-    if (!jsonRes.ok) return { title: null, note: `client-json-status-${jsonRes.status}` };
-    const data = await jsonRes.json();
-    const rawTitle = data?.[0]?.data?.children?.[0]?.data?.title;
-    if (typeof rawTitle === 'string' && rawTitle.trim()) {
-      return { title: rawTitle.trim(), note: 'client-json-ok' };
-    }
-    return { title: null, note: 'client-json-shape' };
-  } catch (e) {
-    return { title: null, note: `client-fetch-failed: ${(e as Error).message}` };
-  }
-}
-
-type Status = { kind: 'saving' | 'done' | 'error'; message: string };
+type Status =
+  | { kind: 'saving' | 'done' | 'error'; message: string }
+  | { kind: 'title'; saveId: string; platform: string };
 
 function ShareTargetInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<Status>({ kind: 'saving', message: 'Saving…' });
+  const [titleInput, setTitleInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const hasRun = useRef(false);
 
   useEffect(() => {
@@ -65,51 +30,94 @@ function ShareTargetInner() {
     hasRun.current = true;
 
     const title = searchParams.get('title');
-    const text = searchParams.get('text');
-    const rawUrl = searchParams.get('url');
-    const sharedUrl = resolveSharedUrl(rawUrl, text);
-
-    // Diagnostic only — see MISTAKES.md / Reddit title investigation.
-    console.log('[share-target] raw searchParams:', { title, text, url: rawUrl });
+    const sharedUrl = resolveSharedUrl(searchParams.get('url'), searchParams.get('text'));
 
     if (!sharedUrl) {
       setStatus({ kind: 'error', message: 'No link found in the shared content.' });
       return;
     }
 
-    const needsRedditTitle = isRedditUrl(sharedUrl) && (!title || URL_PATTERN.test(title));
-    const clientTitlePromise = needsRedditTitle
-      ? tryClientRedditTitle(sharedUrl)
-      : Promise.resolve({ title: null as string | null, note: 'not-attempted' });
-
-    clientTitlePromise
-      .then((clientResult) =>
-        fetch('/api/share-target', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // `text` and `clientNote` are diagnostic-only — not used in
-          // title/URL resolution server-side.
-          body: JSON.stringify({
-            url: sharedUrl,
-            title: title || clientResult.title || undefined,
-            text: text || undefined,
-            clientNote: clientResult.note,
-          }),
-        }),
-      )
+    fetch('/api/share-target', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: sharedUrl, title: title || undefined }),
+    })
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || 'Save failed');
-        setStatus({ kind: 'done', message: `Saved to ${body.platform} ✓` });
+        // A URL-shaped title means every automated fetch came up empty — for
+        // Reddit that is guaranteed (it blocks servers, proxies, and browser
+        // CORS alike; DECISIONS.md D-015). Offer a quick optional title
+        // instead of redirecting straight away.
+        if (typeof body.title === 'string' && URL_PATTERN.test(body.title)) {
+          setStatus({ kind: 'title', saveId: body.id, platform: body.platform });
+        } else {
+          setStatus({ kind: 'done', message: `Saved to ${body.platform} ✓` });
+        }
       })
       .catch((e) => setStatus({ kind: 'error', message: (e as Error).message }));
   }, [searchParams]);
 
   useEffect(() => {
-    if (status.kind === 'saving') return;
+    if (status.kind !== 'done' && status.kind !== 'error') return;
     const timer = setTimeout(() => router.replace('/saves'), 1200);
     return () => clearTimeout(timer);
   }, [status.kind, router]);
+
+  async function handleTitleSave(e: FormEvent) {
+    e.preventDefault();
+    if (status.kind !== 'title' || isSaving) return;
+    const title = titleInput.trim();
+    if (!title) {
+      setStatus({ kind: 'done', message: `Saved to ${status.platform} ✓` });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/share-target', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: status.saveId, title }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Title update failed');
+      setStatus({ kind: 'done', message: `Saved to ${body.platform} ✓` });
+    } catch (e) {
+      setStatus({ kind: 'error', message: (e as Error).message });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (status.kind === 'title') {
+    return (
+      <div>
+        <h1 className="page-title">Saves</h1>
+        <p className="list-empty">Saved ✓ — no title could be fetched for this link.</p>
+        <form className="add-form" onSubmit={handleTitleSave}>
+          <input
+            type="text"
+            className="add-form__name"
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            placeholder="Add a title (optional)"
+            autoFocus
+          />
+          <button type="submit" className="add-form__submit" disabled={isSaving}>
+            {isSaving ? 'Saving…' : 'Save title'}
+          </button>
+          <button
+            type="button"
+            className="add-form__submit"
+            disabled={isSaving}
+            onClick={() => setStatus({ kind: 'done', message: 'Saved ✓' })}
+          >
+            Skip
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div>

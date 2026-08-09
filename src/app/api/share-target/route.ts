@@ -18,15 +18,6 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-
-  // Diagnostic only — see MISTAKES.md / Reddit title investigation.
-  console.log('[share-target] raw payload:', {
-    title: body.title,
-    text: body.text,
-    url: body.url,
-    clientNote: body.clientNote,
-  });
-
   const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
   if (!rawUrl) {
     return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
@@ -43,9 +34,6 @@ export async function POST(request: Request) {
     suppliedTitle && !suppliedIsUrl ? suppliedTitle : (await fetchPageTitle(url)) || suppliedTitle || url;
   const platform = detectPlatform(url);
 
-  // Diagnostic only — see MISTAKES.md / Reddit title investigation.
-  console.log('[share-target] resolved:', { url, title, platform, suppliedTitle, suppliedIsUrl });
-
   const { data, error } = await getSupabaseService()
     .from('saves')
     .insert({
@@ -54,6 +42,38 @@ export async function POST(request: Request) {
       title,
       platform,
     })
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(data);
+}
+
+// Title update for the share page's optional after-save prompt (shown when no
+// title could be fetched — e.g. Reddit blocks all automated access, DECISIONS.md
+// D-015). Same no-session model as POST: service-role client, rows scoped to
+// NOTED_USER_ID.
+export async function PATCH(request: Request) {
+  const userId = process.env.NOTED_USER_ID || '';
+  if (!userId) {
+    return NextResponse.json({ error: 'NOTED_USER_ID is not configured' }, { status: 500 });
+  }
+
+  const body = await request.json();
+  const id = typeof body.id === 'string' ? body.id.trim() : '';
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  if (!id || !title) {
+    return NextResponse.json({ error: 'id and title are required' }, { status: 400 });
+  }
+
+  const { data, error } = await getSupabaseService()
+    .from('saves')
+    .update({ title })
+    .eq('id', id)
+    .eq('user_id', userId)
     .select()
     .single();
 

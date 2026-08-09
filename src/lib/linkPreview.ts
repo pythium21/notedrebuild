@@ -160,6 +160,10 @@ function redditSlugTitle(canonical: URL): string | null {
 
 async function fetchRedditTitle(url: URL): Promise<string | null> {
   const token = await getRedditToken();
+  // Anonymous Reddit fetches are conclusively dead — the WAF 403s every
+  // datacenter IP (D-015 Updates 4–6) — so without credentials, skip the
+  // round-trips entirely. Titles come from the share page's prompt instead.
+  if (!token) return null;
   const canonical = await resolveRedditCanonical(url, token);
   const jsonUrl = new URL(canonical.toString());
   // With a token, the API host (oauth.reddit.com) serves the same .json
@@ -216,8 +220,9 @@ export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
   if (isPrivateHost(parsed.hostname)) return null;
 
   if (isRedditHost(parsed.hostname)) {
-    const redditTitle = await fetchRedditTitle(parsed);
-    if (redditTitle) return redditTitle;
+    // No HTML-scrape fallback for Reddit: the page is either a WAF 403 or an
+    // SPA shell titled just "Reddit" — the OAuth API is the only real source.
+    return fetchRedditTitle(parsed);
   }
 
   const controller = new AbortController();
