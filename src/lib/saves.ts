@@ -18,6 +18,7 @@ export interface Save {
   title: string;
   platform: Platform;
   date: string | null;
+  read: boolean;
   created_at: string;
 }
 
@@ -109,4 +110,14 @@ export async function updateSaveTitle(id: string, title: string): Promise<Save> 
   const { data, error } = await supabase.from('saves').update({ title }).eq('id', id).select().single();
   if (error) throw error;
   return data as Save;
+}
+
+export async function setSaveRead(id: string, read: boolean): Promise<void> {
+  const { error } = await supabase.from('saves').update({ read }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteSave(id: string): Promise<void> {
+  const { error } = await supabase.from('saves').delete().eq('id', id);
+  if (error) throw error;
 }

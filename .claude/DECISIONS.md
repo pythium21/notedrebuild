@@ -6,6 +6,20 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-017 · Saves gain per-row delete and a binary read/unread toggle (2026-08-09)
+
+**Context:** `/saves` had no way to remove a row or track whether a saved link had actually been consumed — every other list in the app (Tasks, Projects, Pages) already has delete; Saves was the one list missing it. Read-tracking was requested as "read/watched or partially read/watched."
+
+**Decision:** Two additions, both matching existing conventions rather than introducing new patterns:
+- **Delete**: per-row "Delete" button with `window.confirm()` (D-010), `deletingId` guard + "Deleting…" label — identical shape to Tasks' delete.
+- **Read status**: binary `read boolean not null default false` column (not tri-state, not a percent) — user's explicit choice over in-progress/done or a percent-complete slider, since nothing in the app auto-tracks video timestamp or scroll position, so a percent field would just be a second manual toggle with more UI for no more signal. Shown as a checkbox per row, styled with the same `.is-done` strike-through class Tasks already uses for its done state — no new CSS pattern.
+
+**Rationale:** Both are the smallest change that closes the gap without speculative complexity — no bulk-actions, no "mark all read," no archive-vs-delete distinction (unlike D-016's checklist items, saves have no completion history worth preserving, so a hard delete is fine here).
+
+**Status:** Active. Schema change (`saves.read`) pending manual application in the Supabase SQL editor (see supabase/schema.sql).
+
+---
+
 ## D-016 · Daily Checklist is a separate system from Tasks (2026-08-09)
 
 **Context:** Recurring personal habits (gym, water, supplements) need a daily-reset checklist with historical completion tracking for future progress/streak views. Tasks are one-off/ad hoc — bolting a `recurring` flag onto `tasks` would conflate two lifecycles (a task is done once; a habit is done again every day) and leave no natural home for per-day history.

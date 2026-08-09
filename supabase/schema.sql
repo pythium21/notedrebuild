@@ -273,3 +273,13 @@ do $$ begin
       );
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- saves.read (DECISIONS.md D-017)
+--
+-- To be applied manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule — this documents the statement, it
+-- wasn't executed by Claude Code.
+-- ---------------------------------------------------------------------------
+
+alter table public.saves add column if not exists read boolean not null default false;

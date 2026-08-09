@@ -4,7 +4,16 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type Action, listActionsForProject } from '@/lib/actions';
 import { attachSave } from '@/lib/projectSaves';
 import { listAllProjects, type Project } from '@/lib/projects';
-import { createSave, listSaves, updateSaveTitle, PLATFORMS, type Platform, type Save } from '@/lib/saves';
+import {
+  createSave,
+  deleteSave,
+  listSaves,
+  setSaveRead,
+  updateSaveTitle,
+  PLATFORMS,
+  type Platform,
+  type Save,
+} from '@/lib/saves';
 import { Picker } from '@/components/Picker';
 
 type ActionOrWhole = Action | { id: '__whole__'; title: string };
@@ -34,6 +43,7 @@ export default function SavesPage() {
   const [isAdding, setIsAdding] = useState(false);
   const [isRefreshingTitles, setIsRefreshingTitles] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [linkingSaveId, setLinkingSaveId] = useState<string | null>(null);
@@ -143,6 +153,32 @@ export default function SavesPage() {
     }
   }
 
+  async function handleToggleRead(save: Save) {
+    const next = !save.read;
+    setSaves((prev) => prev.map((s) => (s.id === save.id ? { ...s, read: next } : s)));
+    try {
+      await setSaveRead(save.id, next);
+    } catch (e) {
+      setSaves((prev) => prev.map((s) => (s.id === save.id ? { ...s, read: save.read } : s)));
+      setError((e as Error).message);
+    }
+  }
+
+  async function handleDelete(save: Save) {
+    if (deletingId) return;
+    if (!window.confirm(`Delete "${save.title}"?`)) return;
+    setError(null);
+    setDeletingId(save.id);
+    try {
+      await deleteSave(save.id);
+      setSaves((prev) => prev.filter((s) => s.id !== save.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleOpenLinkPicker(save: Save) {
     setError(null);
     try {
@@ -246,7 +282,14 @@ export default function SavesPage() {
       ) : (
         <div className="list">
           {saves.map((save) => (
-            <div key={save.id} className="item">
+            <div key={save.id} className={`item${save.read ? ' is-done' : ''}`}>
+              <input
+                type="checkbox"
+                className="item__read-toggle"
+                checked={save.read}
+                onChange={() => handleToggleRead(save)}
+                title={save.read ? 'Mark unread' : 'Mark read'}
+              />
               <a href={save.url} target="_blank" rel="noreferrer" className="item__main">
                 <span className="item__name">{save.title}</span>
               </a>
@@ -254,6 +297,14 @@ export default function SavesPage() {
                 <span className="item__tag">{save.platform}</span>
                 <button type="button" className="item__action" onClick={() => handleOpenLinkPicker(save)}>
                   Link to project
+                </button>
+                <button
+                  type="button"
+                  className="item__action item__action--danger"
+                  onClick={() => handleDelete(save)}
+                  disabled={deletingId === save.id}
+                >
+                  {deletingId === save.id ? 'Deleting…' : 'Delete'}
                 </button>
               </div>
             </div>

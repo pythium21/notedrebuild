@@ -507,6 +507,10 @@ a {
   align-self: start;
 }
 
+.item__read-toggle {
+  flex-shrink: 0;
+}
+
 .item__tag--empty {
   background: none;
   border: none;
