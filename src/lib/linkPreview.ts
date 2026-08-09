@@ -53,6 +53,53 @@ const FETCH_TIMEOUT_MS = 8000;
 // blob of inlined JSON/scripts. 2MB comfortably covers heavy SPA pages too.
 const MAX_BYTES = 2_000_000;
 
+const REDDIT_HOSTS = ['reddit.com', 'redd.it'];
+
+function isRedditHost(hostname: string): boolean {
+  return REDDIT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+}
+
+// Reddit's share short-links (`/r/<sub>/s/<id>`) serve a client-rendered SPA
+// shell to non-browser fetches — the initial HTML just has a generic
+// <title>Reddit</title>, which the HTML scrape below happily accepts as
+// "usable" since it doesn't match any bot-wall junk pattern. Reddit's own
+// `.json` API returns the real post data directly, so try that first for
+// reddit.com/redd.it URLs before falling back to the HTML scrape.
+async function fetchRedditTitle(url: URL): Promise<string | null> {
+  const jsonUrl = new URL(url.toString());
+  jsonUrl.pathname = jsonUrl.pathname.replace(/\/?$/, '') + '.json';
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(jsonUrl.toString(), {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)',
+        Accept: 'application/json',
+      },
+    });
+    if (!res.ok) {
+      console.log('[linkPreview] reddit .json fetch not ok:', jsonUrl.toString(), res.status);
+      return null;
+    }
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('json')) return null;
+
+    const data = await res.json();
+    const rawTitle = data?.[0]?.data?.children?.[0]?.data?.title;
+    const title = typeof rawTitle === 'string' ? usableTitle(rawTitle) : null;
+    console.log('[linkPreview] reddit .json title:', jsonUrl.toString(), title);
+    return title;
+  } catch (err) {
+    console.log('[linkPreview] reddit .json fetch failed:', jsonUrl.toString(), err);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
   let parsed: URL;
   try {
@@ -62,6 +109,11 @@ export async function fetchPageTitle(rawUrl: string): Promise<string | null> {
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
   if (isPrivateHost(parsed.hostname)) return null;
+
+  if (isRedditHost(parsed.hostname)) {
+    const redditTitle = await fetchRedditTitle(parsed);
+    if (redditTitle) return redditTitle;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
