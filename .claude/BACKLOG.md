@@ -72,6 +72,17 @@ Designed pre-rebuild, built from scratch 2026-08-05 (DECISIONS.md D-012) — see
 - Export/import
 - Real app icons (current icons are placeholders — SVG plus generated PNGs)
 
+## Ideas — Second Brain reference (Aug 9)
+
+Sourced from a Notion "Second Brain" template screenshot Dilan shared as original inspiration for My OS. These are unscoped ideas, not committed designs — none have been through a design/decision session yet.
+
+- **Upcoming section — keep it plain**: reference pattern shows the Upcoming list as flat title text only, no dates/badges inline, implicitly sorted. Use as a simplicity anchor when building the due_date-driven Upcoming section (see existing bug-triage item).
+- **Project cards show outcome/steps preview on the card face**: currently `outcome` (D-012) only surfaces in project detail. Reference shows an "Actionable Steps" preview directly on the list card. Revisit once current Projects card layout has had real daily-use validation (capture-first discipline, D-002).
+- **Alternate view-mode tabs**: Tasks reference has Kanban / Priority / Upcoming tabs over the same data; Projects reference has Current Projects / Timeline tabs. Bigger lift — log as an idea, not yet scoped.
+- **Reuse filter-pill pattern beyond Save Manager**: Save Manager's platform filter pills (Aug 5) match a Recent / Category / Favorites pill pattern in the reference's Resources view. Natural extension once Resources goes through its own capture-first pass.
+- **Habit Overview as a separate tab from the daily list**: reference keeps a distinct "Overview" tab apart from the checkbox list. Confirms the existing plan to build a streak/progress view for the Daily Checklist (D-016) as its own surface rather than bolted onto the list.
+- **Persistent quick-add sidebar** ("Quick Button": New Task / New Project / New Goal / New Contact / New Idea / New Resource): fast capture from anywhere in the app. Overlaps conceptually with the share-target capture path — needs a decision on which capture mechanism is canonical before this gets built, to avoid two competing entry points.
+
 ## Done
 
 - [x] Set `SUPABASE_SERVICE_ROLE_KEY` and `NOTED_USER_ID` in Railway Variables and `.env.local`, then verify the live share-sheet round trip — 2026-08-04: confirmed working end-to-end (LinkedIn URL shared via Android share sheet landed correctly in Save Manager, auto-detected as LinkedIn). See STATUS.md → Share Target.
