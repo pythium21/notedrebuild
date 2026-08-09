@@ -26,7 +26,12 @@ function ShareTargetInner() {
     hasRun.current = true;
 
     const title = searchParams.get('title');
-    const sharedUrl = resolveSharedUrl(searchParams.get('url'), searchParams.get('text'));
+    const text = searchParams.get('text');
+    const rawUrl = searchParams.get('url');
+    const sharedUrl = resolveSharedUrl(rawUrl, text);
+
+    // Diagnostic only — see MISTAKES.md / Reddit title investigation.
+    console.log('[share-target] raw searchParams:', { title, text, url: rawUrl });
 
     if (!sharedUrl) {
       setStatus({ kind: 'error', message: 'No link found in the shared content.' });
@@ -36,7 +41,8 @@ function ShareTargetInner() {
     fetch('/api/share-target', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: sharedUrl, title: title || undefined }),
+      // `text` is diagnostic-only for now — not used in title/URL resolution server-side.
+      body: JSON.stringify({ url: sharedUrl, title: title || undefined, text: text || undefined }),
     })
       .then(async (res) => {
         const body = await res.json();

@@ -18,6 +18,14 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+
+  // Diagnostic only — see MISTAKES.md / Reddit title investigation.
+  console.log('[share-target] raw payload:', {
+    title: body.title,
+    text: body.text,
+    url: body.url,
+  });
+
   const rawUrl = typeof body.url === 'string' ? body.url.trim() : '';
   if (!rawUrl) {
     return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
@@ -33,6 +41,9 @@ export async function POST(request: Request) {
   const title =
     suppliedTitle && !suppliedIsUrl ? suppliedTitle : (await fetchPageTitle(url)) || suppliedTitle || url;
   const platform = detectPlatform(url);
+
+  // Diagnostic only — see MISTAKES.md / Reddit title investigation.
+  console.log('[share-target] resolved:', { url, title, platform, suppliedTitle, suppliedIsUrl });
 
   const { data, error } = await getSupabaseService()
     .from('saves')
