@@ -12,8 +12,10 @@ type ActionOrWhole = Action | { id: '__whole__'; title: string };
 // A title that IS a URL tells the user nothing — catches both pre-D-015 rows
 // (title baked in as the exact url) and rows where the share sheet passed the
 // URL itself as the "title" (so title and url differ only by tracking params).
+// "Reddit" is the SPA shell title the old scrape baked into Reddit rows —
+// just as useless, so those retry too.
 function hasRawUrlTitle(save: Save): boolean {
-  return save.title === save.url || /^https?:\/\//i.test(save.title);
+  return save.title === save.url || /^https?:\/\//i.test(save.title) || /^reddit$/i.test(save.title);
 }
 
 export default function SavesPage() {

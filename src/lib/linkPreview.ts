@@ -28,6 +28,9 @@ const JUNK_TITLE_PATTERNS = [
   /^attention required/i,
   /^security check/i,
   /^robot or human/i,
+  // Reddit's SPA shell page title — the real post title never appears in the
+  // initial HTML, so this is a "scrape got nothing" signal, not a title.
+  /^reddit$/i,
 ];
 
 function usableTitle(raw: string): string | null {
@@ -59,15 +62,56 @@ function isRedditHost(hostname: string): boolean {
   return REDDIT_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
 }
 
-// Reddit's share short-links (`/r/<sub>/s/<id>`) serve a client-rendered SPA
-// shell to non-browser fetches — the initial HTML just has a generic
-// <title>Reddit</title>, which the HTML scrape below happily accepts as
-// "usable" since it doesn't match any bot-wall junk pattern. Reddit's own
-// `.json` API returns the real post data directly, so try that first for
-// reddit.com/redd.it URLs before falling back to the HTML scrape.
+// Reddit's share short-links (`/r/<sub>/s/<id>`) are redirect stubs to the
+// canonical `/r/<sub>/comments/<id>/<slug>/` URL, and the canonical page is a
+// client-rendered SPA shell for non-browser fetches — its initial HTML just
+// has a generic <title>Reddit</title>, which the HTML scrape below happily
+// accepts as "usable" since it doesn't match any bot-wall junk pattern.
+// Appending `.json` to the short link doesn't work either: the redirect drops
+// the suffix and lands on HTML. So: resolve the redirect first, then hit
+// Reddit's public `.json` API on the canonical URL, and if that fails, fall
+// back to humanizing the title slug embedded in the canonical path itself.
+async function resolveRedditCanonical(url: URL): Promise<URL> {
+  if (!/\/s\//.test(url.pathname)) return url;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+      redirect: 'manual',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MyOSLinkPreview/1.0)' },
+    });
+    const location = res.headers.get('location');
+    if (res.status >= 300 && res.status < 400 && location) {
+      const target = new URL(location, url);
+      if (isRedditHost(target.hostname) && !isPrivateHost(target.hostname)) {
+        console.log('[linkPreview] reddit canonical:', url.toString(), '->', target.toString());
+        return target;
+      }
+    }
+    console.log('[linkPreview] reddit short-link did not redirect:', url.toString(), res.status);
+    return url;
+  } catch (err) {
+    console.log('[linkPreview] reddit redirect resolve failed:', url.toString(), err);
+    return url;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function redditSlugTitle(canonical: URL): string | null {
+  const slugMatch = canonical.pathname.match(/\/comments\/[^/]+\/([^/]+)/);
+  if (!slugMatch) return null;
+  const words = decodeURIComponent(slugMatch[1]).replace(/_/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
+}
+
 async function fetchRedditTitle(url: URL): Promise<string | null> {
-  const jsonUrl = new URL(url.toString());
+  const canonical = await resolveRedditCanonical(url);
+  const jsonUrl = new URL(canonical.toString());
   jsonUrl.pathname = jsonUrl.pathname.replace(/\/?$/, '') + '.json';
+  jsonUrl.search = '';
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -80,21 +124,25 @@ async function fetchRedditTitle(url: URL): Promise<string | null> {
         Accept: 'application/json',
       },
     });
-    if (!res.ok) {
-      console.log('[linkPreview] reddit .json fetch not ok:', jsonUrl.toString(), res.status);
-      return null;
-    }
     const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('json')) return null;
+    if (!res.ok || !contentType.includes('json')) {
+      console.log(
+        '[linkPreview] reddit .json unusable:',
+        jsonUrl.toString(),
+        res.status,
+        contentType,
+      );
+      return redditSlugTitle(canonical);
+    }
 
     const data = await res.json();
     const rawTitle = data?.[0]?.data?.children?.[0]?.data?.title;
     const title = typeof rawTitle === 'string' ? usableTitle(rawTitle) : null;
     console.log('[linkPreview] reddit .json title:', jsonUrl.toString(), title);
-    return title;
+    return title || redditSlugTitle(canonical);
   } catch (err) {
     console.log('[linkPreview] reddit .json fetch failed:', jsonUrl.toString(), err);
-    return null;
+    return redditSlugTitle(canonical);
   } finally {
     clearTimeout(timeout);
   }
