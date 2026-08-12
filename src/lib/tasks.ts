@@ -45,6 +45,21 @@ export async function listUpcomingTasks(): Promise<Task[]> {
   return data as Task[];
 }
 
+// Inclusive [startDate, endDate] on tasks.date — feeds the Calendar tab
+// (DECISIONS.md D-019), which surfaces task due dates read-only alongside
+// events.
+export async function listTasksInRange(startDate: string, endDate: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .not('date', 'is', null)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
 export async function createTask(input: {
   name: string;
   tag?: string | null;
