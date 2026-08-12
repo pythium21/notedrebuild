@@ -19,7 +19,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Reusing the schema avoids a second migration and preserves completion history; deriving misses instead of storing them avoids a second source of truth that could drift from the due-date rules. The chip-based add flow is the cheapest fix for the "reads as a task" complaint — no new interaction pattern, just visual weight.
 
-**Status:** Active. Schema change to be applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule (see `supabase/schema.sql`). Supersedes D-016's Placement and Scope bullets; D-016's Decision (schema rationale, reset semantics, archive-not-delete) stands.
+**Status:** Active. Schema change (`frequency`/`days_of_week`/`day_of_month` on `checklist_items`) applied manually in the Supabase SQL editor, confirmed by user 2026-08-12. Supersedes D-016's Placement and Scope bullets; D-016's Decision (schema rationale, reset semantics, archive-not-delete) stands.
 
 ---
 
