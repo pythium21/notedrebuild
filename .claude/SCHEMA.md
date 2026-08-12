@@ -83,7 +83,7 @@ date	date not null	the user's LOCAL calendar date, computed client-side (`localT
 completed_at	timestamptz not null default now()	
 RLS: one `owner_access` policy `for all`, scoped via `item_id in (select id from checklist_items where user_id = auth.uid())`.
 events
-Calendar Phase 1 (DECISIONS.md D-019) — real appointments/events, fully separate from `tasks` (which keeps its single nullable `date`). Not yet applied live; pending manual run in the Supabase SQL editor. Standard convention columns (`id`, `user_id`, `created_at`) plus:
+Calendar Phase 1 (DECISIONS.md D-019) — real appointments/events, fully separate from `tasks` (which keeps its single nullable `date`). Confirmed live 2026-08-12 (applied manually via the Supabase SQL editor). Standard convention columns (`id`, `user_id`, `created_at`) plus:
 Column	Type	Notes
 title	text not null	
 start_time	timestamptz not null	

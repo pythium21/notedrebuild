@@ -20,7 +20,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Reusing Today as the tab host and `BreadcrumbMenu` as the overlay avoids two new architectural patterns (a Dashboard route, a new sheet/dropdown mechanism) for a phase-1 feature whose value is still unproven. The four-policy RLS convention is the actual default in this schema (six of seven prior tables use it); the checklist tables' single-policy shortcut was documented as an intentional one-off, not something to propagate by default.
 
-**Status:** Active. Schema change (`events` table) to be applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule (see `supabase/schema.sql`) — not yet confirmed live.
+**Status:** Active. Schema change (`events` table) applied manually in the Supabase SQL editor, confirmed by user 2026-08-12.
 
 ---
 
