@@ -1490,3 +1490,125 @@ textarea.block--text {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* ---- Calendar (Today-page tab, DECISIONS.md D-019) ---- */
+
+.today-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.calendar-month-nav__label {
+  font-weight: 600;
+  min-width: 9rem;
+  text-align: center;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 56px;
+  padding: 0.3rem 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.calendar-day--outside {
+  opacity: 0.4;
+}
+
+.calendar-day--today {
+  border-color: var(--accent);
+}
+
+.calendar-day.is-selected {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
+}
+
+.calendar-day__num {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.calendar-day__dots {
+  display: flex;
+  gap: 2px;
+}
+
+.calendar-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar-day__due-count {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 599px) {
+  .calendar-day {
+    min-height: 44px;
+  }
+}
+
+.calendar-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.agenda-day__header {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.agenda-day__header--today {
+  color: var(--accent);
+}
+
+.badge--event {
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  border-color: var(--accent);
+  color: var(--accent);
+}

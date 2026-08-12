@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { CalendarTab } from '@/components/CalendarTab';
 import {
   listFlaggedActions,
   listUpcomingActions,
@@ -53,7 +54,10 @@ function formatUpcomingDate(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+type TodayTab = 'today' | 'calendar';
+
 export default function TodayPage() {
+  const [activeTab, setActiveTab] = useState<TodayTab>('today');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [actions, setActions] = useState<FlaggedAction[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
@@ -109,92 +113,115 @@ export default function TodayPage() {
     <div>
       <h1 className="page-title">Today</h1>
 
-      {error && <p className="auth-error">{error}</p>}
+      <div className="today-tabs" role="group" aria-label="Today view">
+        <button
+          type="button"
+          className={`chip${activeTab === 'today' ? ' is-selected' : ''}`}
+          onClick={() => setActiveTab('today')}
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          className={`chip${activeTab === 'calendar' ? ' is-selected' : ''}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          Calendar
+        </button>
+      </div>
 
-      {loading ? null : (
-        <div className="today-view">
-          {nothingFlagged ? (
-            <p className="list-empty">
-              Nothing flagged for today — flag a task from Tasks, or an action from a project, to see it here.
-            </p>
-          ) : (
-            <>
-              {tasks.length > 0 && (
-                <section className="today-section">
-                  <h2 className="today-section__title">Tasks</h2>
+      {activeTab === 'calendar' ? (
+        <CalendarTab />
+      ) : (
+        <>
+          {error && <p className="auth-error">{error}</p>}
+
+          {loading ? null : (
+            <div className="today-view">
+              {nothingFlagged ? (
+                <p className="list-empty">
+                  Nothing flagged for today — flag a task from Tasks, or an action from a project, to see it here.
+                </p>
+              ) : (
+                <>
+                  {tasks.length > 0 && (
+                    <section className="today-section">
+                      <h2 className="today-section__title">Tasks</h2>
+                      <div className="list">
+                        {tasks.map((task) => (
+                          <label key={task.id} className="item today-item">
+                            <input type="checkbox" onChange={() => handleCompleteTask(task)} />
+                            <span className="item__name">{task.name}</span>
+                            {task.tag && <span className="item__tag">{task.tag}</span>}
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {actionGroups.map((group) => (
+                    <section key={group.projectId} className="today-section">
+                      <h2 className="today-section__title">
+                        <Link href={`/projects/${group.projectId}`}>{group.projectName}</Link>
+                      </h2>
+                      <div className="list">
+                        {group.items.map((action) => (
+                          <label key={action.id} className="item today-item">
+                            <input type="checkbox" onChange={() => handleCompleteAction(action)} />
+                            <span className="item__name">{action.title}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </>
+              )}
+
+              {upcoming.length > 0 && (
+                <section className="today-section today-section--upcoming">
+                  <h2 className="today-section__title">Upcoming</h2>
                   <div className="list">
-                    {tasks.map((task) => (
-                      <label key={task.id} className="item today-item">
-                        <input type="checkbox" onChange={() => handleCompleteTask(task)} />
-                        <span className="item__name">{task.name}</span>
-                        {task.tag && <span className="item__tag">{task.tag}</span>}
-                      </label>
-                    ))}
+                    {upcoming.map((item) => {
+                      if (item.kind === 'task') {
+                        return (
+                          <div key={`task-${item.task.id}`} className="item today-item">
+                            <span className="item__name">{item.task.name}</span>
+                            <span className="item__tag">Task</span>
+                            <span className="item__date">{formatUpcomingDate(item.date)}</span>
+                          </div>
+                        );
+                      }
+                      if (item.kind === 'action') {
+                        return (
+                          <Link
+                            key={`action-${item.action.id}`}
+                            href={`/projects/${item.action.project_id}`}
+                            className="item today-item"
+                          >
+                            <span className="item__name">{item.action.title}</span>
+                            <span className="item__tag">{item.action.project?.name || 'Project'}</span>
+                            <span className="item__date">{formatUpcomingDate(item.date)}</span>
+                          </Link>
+                        );
+                      }
+                      return (
+                        <Link
+                          key={`project-${item.project.id}`}
+                          href={`/projects/${item.project.id}`}
+                          className="item today-item"
+                        >
+                          <span className="item__name">{item.project.name}</span>
+                          <span className="item__tag">Project</span>
+                          <span className="item__date">{formatUpcomingDate(item.date)}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </section>
               )}
-
-              {actionGroups.map((group) => (
-                <section key={group.projectId} className="today-section">
-                  <h2 className="today-section__title">
-                    <Link href={`/projects/${group.projectId}`}>{group.projectName}</Link>
-                  </h2>
-                  <div className="list">
-                    {group.items.map((action) => (
-                      <label key={action.id} className="item today-item">
-                        <input type="checkbox" onChange={() => handleCompleteAction(action)} />
-                        <span className="item__name">{action.title}</span>
-                      </label>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </>
+            </div>
           )}
-
-          {upcoming.length > 0 && (
-            <section className="today-section today-section--upcoming">
-              <h2 className="today-section__title">Upcoming</h2>
-              <div className="list">
-                {upcoming.map((item) => {
-                  if (item.kind === 'task') {
-                    return (
-                      <div key={`task-${item.task.id}`} className="item today-item">
-                        <span className="item__name">{item.task.name}</span>
-                        <span className="item__tag">Task</span>
-                        <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                      </div>
-                    );
-                  }
-                  if (item.kind === 'action') {
-                    return (
-                      <Link
-                        key={`action-${item.action.id}`}
-                        href={`/projects/${item.action.project_id}`}
-                        className="item today-item"
-                      >
-                        <span className="item__name">{item.action.title}</span>
-                        <span className="item__tag">{item.action.project?.name || 'Project'}</span>
-                        <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                      </Link>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={`project-${item.project.id}`}
-                      href={`/projects/${item.project.id}`}
-                      className="item today-item"
-                    >
-                      <span className="item__name">{item.project.name}</span>
-                      <span className="item__tag">Project</span>
-                      <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-        </div>
+        </>
       )}
     </div>
   );
