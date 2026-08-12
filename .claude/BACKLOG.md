@@ -9,8 +9,8 @@ All open work. **Active** is flat-ranked by priority (top = next). **Horizon** i
 3. The Notes slash-menu-behind-keyboard problem (#6 in the Aug 6 batch) remains unfixed after the `interactiveWidget: 'resizes-content'` revert (see MISTAKES.md). Needs a scoped approach: a JS `visualViewport` listener that repositions just the block-menu popup above the keyboard, rather than a global viewport-level setting that affects every fixed-position element in the app.
 4. Verify `saves` table constraints against the live Supabase dashboard (NOT NULL / CHECK on `platform`, `title`) — only column existence was confirmed via anon-key PostgREST probing when the `/saves` route was built (DECISIONS.md D-003); RLS blocked every insert attempt before a constraint violation could surface, so those details are currently assumed to match the tasks/projects convention rather than confirmed.
 5. Fix `manifest.json`'s `share_target` enctype — browser console warns it defaults to `application/x-www-form-urlencoded`; verify the `/share-target` route's expected content type and set `enctype` explicitly, then reinstall the PWA to pick up the manifest change.
-6. Daily Checklist (DECISIONS.md D-016): schema applied 2026-08-09 — verify the checklist card on `/tasks` end-to-end on device (add, check/uncheck + refresh persistence, reorder, edit, archive-keeps-history).
-7. Saves delete + read toggle (DECISIONS.md D-017): schema applied 2026-08-09 — verify on device (delete removes a row, read checkbox persists across refresh).
+6. Saves delete + read toggle (DECISIONS.md D-017): schema applied 2026-08-09 — verify on device (delete removes a row, read checkbox persists across refresh).
+7. Recurring Items (DECISIONS.md D-018, supersedes D-016): `frequency`/`days_of_week`/`day_of_month` columns on `checklist_items` are documented in `supabase/schema.sql` but NOT YET applied — run manually in the Supabase SQL editor before use. Once applied, verify on device end-to-end at the new `/recurring` route: add flow requires a frequency chip before Add enables; a daily item behaves as before (shows every day, streak counts consecutive days); a weekly item only appears on its chosen weekday(s); a monthly item appears on its chosen day and clamps correctly for day_of_month=29/30/31 in short months; check/uncheck still removes the completion row on uncheck; archive still preserves completion history; `/tasks` no longer shows the checklist card; nav "Recurring" link works on desktop sidebar and mobile bottom-nav/drawer.
 
 ## Tasks
 
@@ -63,8 +63,8 @@ Designed pre-rebuild, built from scratch 2026-08-05 (DECISIONS.md D-012) — see
 
 ## Horizon
 
-- Push notifications for Daily Checklist reminders. Needs: VAPID keys, a push subscription table (user_id, endpoint, keys jsonb), service worker `push` event listener (SW already exists, v3), and a scheduler to trigger sends at set times — Railway has no built-in cron, so options are Railway Cron (if plan supports it), an external cron webhook (e.g. cron-job.org), or Supabase pg_cron. In-app reminder only for now.
-- Daily Checklist progress/streak view (charts, completion %, streaks) — fast-follow once checklist_completions has real data to look back on.
+- Push notifications for Recurring Items reminders. Needs: VAPID keys, a push subscription table (user_id, endpoint, keys jsonb), service worker `push` event listener (SW already exists, v3), and a scheduler to trigger sends at set times — Railway has no built-in cron, so options are Railway Cron (if plan supports it), an external cron webhook (e.g. cron-job.org), or Supabase pg_cron. In-app reminder only for now.
+- Recurring Items calendar heatmap / dedicated progress page — the D-018 build surfaces streak/completion-rate inline on the list only; revisit if that feels cramped once it's in daily use.
 - Supabase MCP connector — enables pushing progress notes/updates into My OS directly from Claude chat sessions, without needing Claude Code open.
 - The remaining ~10 routes from the old repo: Health & Fitness, Expense Tracker, Goals, Habits, Journal, Content HQ, Contacts, Resources, Vault, Dashboard
 - Saves: list/grid toggle, platform filters (the minimal `/saves` route itself is now built, see STATUS.md)
@@ -80,7 +80,7 @@ Sourced from a Notion "Second Brain" template screenshot Dilan shared as origina
 - **Project cards show outcome/steps preview on the card face**: currently `outcome` (D-012) only surfaces in project detail. Reference shows an "Actionable Steps" preview directly on the list card. Revisit once current Projects card layout has had real daily-use validation (capture-first discipline, D-002).
 - **Alternate view-mode tabs**: Tasks reference has Kanban / Priority / Upcoming tabs over the same data; Projects reference has Current Projects / Timeline tabs. Bigger lift — log as an idea, not yet scoped.
 - **Reuse filter-pill pattern beyond Save Manager**: Save Manager's platform filter pills (Aug 5) match a Recent / Category / Favorites pill pattern in the reference's Resources view. Natural extension once Resources goes through its own capture-first pass.
-- **Habit Overview as a separate tab from the daily list**: reference keeps a distinct "Overview" tab apart from the checkbox list. Confirms the existing plan to build a streak/progress view for the Daily Checklist (D-016) as its own surface rather than bolted onto the list.
+- **Habit Overview as a separate tab from the daily list**: reference keeps a distinct "Overview" tab apart from the checkbox list. Recurring Items (D-018) shipped streak/rate inline on the list instead of a separate tab for now — revisit this reference if inline feels cramped once it's in daily use.
 - **Persistent quick-add sidebar** ("Quick Button": New Task / New Project / New Goal / New Contact / New Idea / New Resource): fast capture from anywhere in the app. Overlaps conceptually with the share-target capture path — needs a decision on which capture mechanism is canonical before this gets built, to avoid two competing entry points.
 
 ## Done
