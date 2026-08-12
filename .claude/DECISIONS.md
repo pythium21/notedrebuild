@@ -6,6 +6,24 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-019 · Calendar Phase 1 ships as a Today-page tab, not a Dashboard route (2026-08-12)
+
+**Context:** Requested as a "Dashboard tab," but this app has no Dashboard route — `Dashboard` is still an unbuilt Horizon item carried over from the old repo (BACKLOG.md). The closest thing this app has to a dashboard is the Today page (`/`, DECISIONS.md D-011), which already aggregates flagged tasks/actions and an Upcoming section. Building a new Dashboard route now to house one tab would be a bigger scope jump than the feature needs and cuts against capture-first discipline (CLAUDE.md, D-002) — Dashboard hasn't been pulled in by actual usage yet.
+
+**Decision:**
+- **Placement:** Calendar ships as a second tab on the existing Today page (`src/app/page.tsx`), alongside the current "Today" content — not a new route, not a new Dashboard. Tab selection is local component state only, resets on reload (no server persistence needed at this scale).
+- **Schema:** new `events` table, fully separate from `tasks` — real appointments/events with `start_time`/`end_time` (`timestamptz`) and an `all_day` flag, distinct from a task's single nullable `date`. `source text not null default 'manual'` is forward-looking for later import paths (share-target, Google sync) without building them now. RLS uses the standard four-policy convention (`events_select_own`/`_insert_own`/`_update_own`/`_delete_own`) matching `projects`/`tasks`/`saves`/`actions`/`pages` — not `checklist_items`'s compact single-policy variant, since that was called out as a deliberate exception, not the default.
+- **Task due dates:** surfaced read-only in the calendar (both Month and Agenda views, and the day-detail panel) by querying `tasks.date` (confirmed the actual column name — not `due_date`, which only exists on `actions`/`projects`) in the visible range. No per-task detail page exists in this app, so due-task rows link back to `/tasks` rather than an individual task page.
+- **Day-detail panel:** reuses the existing `BreadcrumbMenu` component (`src/components/BreadcrumbMenu.tsx` — desktop dropdown / mobile bottom sheet via CSS breakpoint, already used by Project detail and the Pages editor breadcrumb) rather than introducing a new overlay pattern. Holds that day's events (with quick-add + delete) and due tasks (read-only).
+- **View toggle:** Month grid / Agenda list, sharing one visible-month range (both views navigate the same month via prev/next controls — Agenda isn't an independent rolling window). Rendered as chips reusing D-018's `.chip`/`.chip.is-selected` pattern rather than a new toggle style. Agenda skips days with nothing due/scheduled.
+- **Explicitly deferred** (BACKLOG.md Horizon): `.ics` import, share-target extension for calendar, Google Calendar sync, recurrence rules, drag-to-reschedule, linking events to projects.
+
+**Rationale:** Reusing Today as the tab host and `BreadcrumbMenu` as the overlay avoids two new architectural patterns (a Dashboard route, a new sheet/dropdown mechanism) for a phase-1 feature whose value is still unproven. The four-policy RLS convention is the actual default in this schema (six of seven prior tables use it); the checklist tables' single-policy shortcut was documented as an intentional one-off, not something to propagate by default.
+
+**Status:** Active. Schema change (`events` table) to be applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule (see `supabase/schema.sql`) — not yet confirmed live.
+
+---
+
 ## D-018 · Recurring Items supersedes Daily Checklist's placement and scope (2026-08-12)
 
 **Context:** D-016's Daily Checklist had three problems surfaced by real use: (1) it was embedded as a card at the bottom of `/tasks` with no route of its own; (2) its single-line add-form was visually identical to a task quick-add, so it read as "another way to add a task" rather than a distinct feature; (3) it only supported daily reset — no weekly/monthly cadence and no progress/streak view, both explicitly deferred in D-016's Scope note.

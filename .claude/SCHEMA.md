@@ -82,6 +82,17 @@ item_id	uuid not null	references checklist_items(id) on delete cascade
 date	date not null	the user's LOCAL calendar date, computed client-side (`localToday()` in src/lib/checklist.ts) — not UTC. `unique (item_id, date)` — one completion per item per day; the client upserts with ignoreDuplicates
 completed_at	timestamptz not null default now()	
 RLS: one `owner_access` policy `for all`, scoped via `item_id in (select id from checklist_items where user_id = auth.uid())`.
+events
+Calendar Phase 1 (DECISIONS.md D-019) — real appointments/events, fully separate from `tasks` (which keeps its single nullable `date`). Not yet applied live; pending manual run in the Supabase SQL editor. Standard convention columns (`id`, `user_id`, `created_at`) plus:
+Column	Type	Notes
+title	text not null	
+start_time	timestamptz not null	
+end_time	timestamptz, nullable	null for open-ended/all-day events
+all_day	boolean not null default false	when true, the UI treats `start_time` as a bare date (local midnight) rather than a specific time
+location	text, nullable	
+description	text, nullable	
+source	text not null default 'manual'	forward-looking for later import paths (`.ics`, Google Calendar, share-target) — no reader other than `'manual'` exists yet; see BACKLOG.md Horizon
+RLS: standard four-policy convention (`events_select_own`/`_insert_own`/`_update_own`/`_delete_own`), not the `checklist_items` single-policy shortcut — see DECISIONS.md D-019.
 Planned tables (not yet created)
 
 The retired vanilla repo's SCHEMA.md documents the full 13-route schema (goals, habits, expenses, workouts, journal, contacts, content, resources, vault). `pages` was the last one parked there and has now been built (DECISIONS.md D-012, see above) — remaining tables are added here one at a time, when their route is actually built — copy the section from the retired repo's SCHEMA.md at that point, don't pre-create tables.

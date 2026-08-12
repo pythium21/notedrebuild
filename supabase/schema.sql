@@ -304,3 +304,41 @@ alter table checklist_items add column if not exists day_of_month int
 
 -- Existing rows are all daily-cadence today; default 'daily' above preserves
 -- their current behavior with no backfill needed.
+
+-- ---------------------------------------------------------------------------
+-- Calendar Phase 1: events table (DECISIONS.md D-019)
+--
+-- To be applied manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule. Fully separate from tasks — tasks keep
+-- their single nullable `date`; events get real start/end timestamps.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  title text not null,
+  start_time timestamptz not null,
+  end_time timestamptz,
+  all_day boolean not null default false,
+  location text,
+  description text,
+  source text not null default 'manual',
+  created_at timestamptz not null default now()
+);
+
+alter table public.events enable row level security;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'events' and policyname = 'events_select_own') then
+    create policy events_select_own on public.events for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'events' and policyname = 'events_insert_own') then
+    create policy events_insert_own on public.events for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'events' and policyname = 'events_update_own') then
+    create policy events_update_own on public.events for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'events' and policyname = 'events_delete_own') then
+    create policy events_delete_own on public.events for delete using (user_id = auth.uid());
+  end if;
+end $$;
