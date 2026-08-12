@@ -1416,25 +1416,77 @@ textarea.block--text {
 
 /* ---- Daily Checklist (own card so it never reads as part of the tasks table) ---- */
 
-.daily-checklist {
-  margin-top: 32px;
-  padding: 16px;
+.page-hint {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Recurring Items add form (DECISIONS.md D-018) — a required frequency
+   choice as chips, deliberately louder than a dropdown so the form reads as
+   a distinct feature from a task quick-add rather than another way to add
+   a task. */
+.recurring-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.recurring-add-form .add-form__name {
+  flex: 1 1 160px;
+  padding: 0.65rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
 }
 
-.daily-checklist__title {
-  margin: 0 0 4px;
-  font-size: 1.1rem;
+.frequency-chips,
+.weekday-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-.daily-checklist__hint {
-  margin: 0 0 12px;
+.chip {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
   font-size: 0.85rem;
-  color: var(--text-muted);
 }
 
-.daily-checklist .item {
-  background: var(--bg);
+.chip.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.chip--sm {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.month-day-input {
+  width: 9rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.item__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.item__progress {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }

@@ -4,22 +4,50 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   archiveChecklistItem,
   createChecklistItem,
-  listChecklistForToday,
+  getCompletionRate,
+  getStreak,
+  listRecurringForToday,
   setChecklistItemSortOrder,
   setCompletedToday,
   updateChecklistItemTitle,
   type ChecklistItemToday,
+  type Frequency,
 } from '@/lib/checklist';
 
-// Standalone data hook — no shared queries with tasks. The component (and this
-// hook) can be relocated to Dashboard or Today by moving the render call only.
-function useDailyChecklist() {
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 7, label: 'Sun' },
+];
+
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function currentQuarterRange(): { start: string; end: string } {
+  const now = new Date();
+  const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  return {
+    start: toLocalDateString(new Date(now.getFullYear(), quarterStartMonth, 1)),
+    end: toLocalDateString(now),
+  };
+}
+
+// Standalone data hook — no shared queries with tasks.
+function useRecurringItems() {
   const [items, setItems] = useState<ChecklistItemToday[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    return listChecklistForToday()
+    return listRecurringForToday()
       .then(setItems)
       .catch((e) => setError((e as Error).message));
   }, []);
@@ -31,25 +59,83 @@ function useDailyChecklist() {
   return { items, setItems, loading, error, setError, reload };
 }
 
-export function DailyChecklist() {
-  const { items, setItems, loading, error, setError, reload } = useDailyChecklist();
+export function RecurringItems() {
+  const { items, setItems, loading, error, setError, reload } = useRecurringItems();
+  const [progress, setProgress] = useState<Record<string, string>>({});
+
   const [newTitle, setNewTitle] = useState('');
+  const [newFrequency, setNewFrequency] = useState<Frequency | null>(null);
+  const [newDaysOfWeek, setNewDaysOfWeek] = useState<number[]>([]);
+  const [newDayOfMonth, setNewDayOfMonth] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (items.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      items.map(async (item): Promise<[string, string]> => {
+        try {
+          if (item.frequency === 'daily') {
+            const streak = await getStreak(item.id);
+            return [item.id, `${streak} day streak`];
+          }
+          const { start, end } = currentQuarterRange();
+          const { done, due } = await getCompletionRate(item.id, start, end);
+          return [item.id, `${done}/${due} this quarter`];
+        } catch {
+          return [item.id, ''];
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) setProgress(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
+
+  const dayOfMonthNum = Number(newDayOfMonth);
+  const canSubmit =
+    newTitle.trim().length > 0 &&
+    newFrequency !== null &&
+    (newFrequency !== 'weekly' || newDaysOfWeek.length > 0) &&
+    (newFrequency !== 'monthly' ||
+      (newDayOfMonth.trim().length > 0 && dayOfMonthNum >= 1 && dayOfMonthNum <= 31));
+
+  function resetAddForm() {
+    setNewTitle('');
+    setNewFrequency(null);
+    setNewDaysOfWeek([]);
+    setNewDayOfMonth('');
+  }
+
+  function toggleNewDayOfWeek(value: number) {
+    setNewDaysOfWeek((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value].sort(),
+    );
+  }
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!newTitle.trim() || isAdding) return;
+    if (!canSubmit || isAdding) return;
     setError(null);
     setIsAdding(true);
     try {
       const nextSort = items.reduce((max, item) => Math.max(max, item.sort_order), -1) + 1;
-      const item = await createChecklistItem(newTitle.trim(), nextSort);
+      const item = await createChecklistItem(
+        newTitle.trim(),
+        nextSort,
+        newFrequency as Frequency,
+        newDaysOfWeek,
+        newFrequency === 'monthly' ? dayOfMonthNum : undefined,
+      );
       setItems((prev) => [...prev, { ...item, completedToday: false }]);
-      setNewTitle('');
+      resetAddForm();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -134,19 +220,62 @@ export function DailyChecklist() {
   }
 
   return (
-    <section className="daily-checklist">
-      <h2 className="daily-checklist__title">Daily Checklist</h2>
-      <p className="daily-checklist__hint">Recurring habits — resets every day at local midnight.</p>
+    <div>
+      <h1 className="page-title">Recurring</h1>
+      <p className="page-hint">
+        Items on a fixed schedule — daily, weekly, or monthly. Not a task list.
+      </p>
 
-      <form className="add-form" onSubmit={handleAdd}>
+      <form className="recurring-add-form" onSubmit={handleAdd}>
         <input
           type="text"
           className="add-form__name"
-          placeholder="Add a daily item…"
+          placeholder="Add a recurring item…"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
         />
-        <button type="submit" className="add-form__submit" disabled={isAdding}>
+
+        <div className="frequency-chips" role="group" aria-label="Frequency">
+          {(['daily', 'weekly', 'monthly'] as Frequency[]).map((freq) => (
+            <button
+              key={freq}
+              type="button"
+              className={`chip${newFrequency === freq ? ' is-selected' : ''}`}
+              onClick={() => setNewFrequency(freq)}
+            >
+              {freq[0].toUpperCase() + freq.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {newFrequency === 'weekly' && (
+          <div className="weekday-chips" role="group" aria-label="Days of week">
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day.value}
+                type="button"
+                className={`chip chip--sm${newDaysOfWeek.includes(day.value) ? ' is-selected' : ''}`}
+                onClick={() => toggleNewDayOfWeek(day.value)}
+              >
+                {day.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {newFrequency === 'monthly' && (
+          <input
+            type="number"
+            min={1}
+            max={31}
+            className="month-day-input"
+            placeholder="Day of month (1–31)"
+            value={newDayOfMonth}
+            onChange={(e) => setNewDayOfMonth(e.target.value)}
+          />
+        )}
+
+        <button type="submit" className="add-form__submit" disabled={!canSubmit || isAdding}>
           {isAdding ? 'Adding…' : 'Add'}
         </button>
       </form>
@@ -154,7 +283,7 @@ export function DailyChecklist() {
       {error && <p className="auth-error">{error}</p>}
 
       {loading ? null : items.length === 0 ? (
-        <p className="list-empty">No daily items yet — add one above.</p>
+        <p className="list-empty">No recurring items yet — add one above.</p>
       ) : (
         <div className="list">
           {items.map((item, index) =>
@@ -194,7 +323,12 @@ export function DailyChecklist() {
                     checked={item.completedToday}
                     onChange={() => handleToggle(item)}
                   />
-                  <span className="item__name">{item.title}</span>
+                  <span className="item__text">
+                    <span className="item__name">{item.title}</span>
+                    {progress[item.id] && (
+                      <span className="item__progress">{progress[item.id]}</span>
+                    )}
+                  </span>
                 </label>
                 <div className="item__actions">
                   <button
@@ -236,6 +370,6 @@ export function DailyChecklist() {
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
