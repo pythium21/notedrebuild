@@ -6,6 +6,23 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-018 · Recurring Items supersedes Daily Checklist's placement and scope (2026-08-12)
+
+**Context:** D-016's Daily Checklist had three problems surfaced by real use: (1) it was embedded as a card at the bottom of `/tasks` with no route of its own; (2) its single-line add-form was visually identical to a task quick-add, so it read as "another way to add a task" rather than a distinct feature; (3) it only supported daily reset — no weekly/monthly cadence and no progress/streak view, both explicitly deferred in D-016's Scope note.
+
+**Decision:** Supersede D-016's placement and scope, but reuse its schema rather than replace it — `checklist_items`/`checklist_completions` (confirmed live 2026-08-09) are extended, not dropped, so no data loss.
+- **Schema:** `checklist_items` gains `frequency` (`daily` | `weekly` | `monthly`, default `'daily'`), `days_of_week` (int array, ISO weekday ints for `weekly`), `day_of_month` (1–31, for `monthly`). Existing rows default to `'daily'`, preserving current behavior with no backfill. `checklist_completions` is unchanged — a completion row still means "done for the due-date that fell on this date"; misses are derived (a past due-date with no completion row), never stored, to avoid drift at single-user scale.
+- **Placement:** own top-level route `/recurring`, removed from `/tasks` entirely. Nav gets a new "Recurring" (↻) item after Tasks.
+- **Rename:** `DailyChecklist.tsx` → `RecurringItems.tsx` (`RecurringItems` export, `useRecurringItems` hook) — the old name became actively misleading once weekly/monthly cadences exist. `src/lib/checklist.ts` keeps its filename (rename not worth the history churn) but gains `isDueOn`, `getStreak`, `getCompletionRate`, and `listRecurringForToday` (replaces `listChecklistForToday`).
+- **UI fix for "feels like adding a task":** the add flow becomes two-step — title, then a *required* frequency choice as three chips (Daily/Weekly/Monthly, not a dropdown, deliberately louder) that reveals a day-of-week or day-of-month picker. List rows show streak (daily) or completion rate (weekly/monthly) inline, muted text under the title — no separate progress page for this pass, revisit only if inline feels cramped in daily use.
+- **Explicitly out of scope:** folding into a future "Habits" route — this stays a separate top-level concept until it proves redundant with Habits.
+
+**Rationale:** Reusing the schema avoids a second migration and preserves completion history; deriving misses instead of storing them avoids a second source of truth that could drift from the due-date rules. The chip-based add flow is the cheapest fix for the "reads as a task" complaint — no new interaction pattern, just visual weight.
+
+**Status:** Active. Schema change to be applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule (see `supabase/schema.sql`). Supersedes D-016's Placement and Scope bullets; D-016's Decision (schema rationale, reset semantics, archive-not-delete) stands.
+
+---
+
 ## D-017 · Saves gain per-row delete and a binary read/unread toggle (2026-08-09)
 
 **Context:** `/saves` had no way to remove a row or track whether a saved link had actually been consumed — every other list in the app (Tasks, Projects, Pages) already has delete; Saves was the one list missing it. Read-tracking was requested as "read/watched or partially read/watched."

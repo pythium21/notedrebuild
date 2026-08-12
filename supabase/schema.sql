@@ -283,3 +283,24 @@ end $$;
 -- ---------------------------------------------------------------------------
 
 alter table public.saves add column if not exists read boolean not null default false;
+
+-- ---------------------------------------------------------------------------
+-- Recurring Items: fixed schedule + own route (DECISIONS.md D-018)
+--
+-- Extends D-016's checklist_items/checklist_completions rather than replacing.
+-- To be applied manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule.
+-- ---------------------------------------------------------------------------
+
+alter table checklist_items add column if not exists frequency text not null default 'daily'
+  check (frequency in ('daily', 'weekly', 'monthly'));
+
+-- Weekly: array of ISO weekday ints, 1=Monday..7=Sunday. Null/empty for daily & monthly.
+alter table checklist_items add column if not exists days_of_week int[];
+
+-- Monthly: day-of-month 1-31. Null for daily & weekly.
+alter table checklist_items add column if not exists day_of_month int
+  check (day_of_month is null or (day_of_month between 1 and 31));
+
+-- Existing rows are all daily-cadence today; default 'daily' above preserves
+-- their current behavior with no backfill needed.
