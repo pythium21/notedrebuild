@@ -1493,6 +1493,10 @@ textarea.block--text {
 
 /* ---- Calendar (Today-page tab, DECISIONS.md D-019) ---- */
 
+.calendar {
+  position: relative;
+}
+
 .today-tabs {
   display: flex;
   gap: 0.4rem;
@@ -1611,4 +1615,55 @@ textarea.block--text {
   background: color-mix(in srgb, var(--accent) 18%, var(--bg));
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.day-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem;
+}
+
+.day-detail__heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.day-detail__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.day-detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.day-detail-form input[type='text'],
+.day-detail-form input[type='date'],
+.day-detail-form input[type='time'],
+.day-detail-form textarea {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font: inherit;
+  color: var(--text);
+}
+
+.day-detail-form textarea {
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.day-detail-form__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
 }

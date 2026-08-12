@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { DayDetailPanel } from '@/components/DayDetailPanel';
 import { listEventsInRange, type CalendarEvent } from '@/lib/events';
 import { listTasksInRange, type Task } from '@/lib/tasks';
 
@@ -228,6 +229,17 @@ export function CalendarTab() {
             })
           )}
         </div>
+      )}
+
+      {selectedDate && (
+        <DayDetailPanel
+          date={selectedDate}
+          events={dayMap.get(selectedDate)?.events ?? []}
+          tasks={dayMap.get(selectedDate)?.tasks ?? []}
+          onClose={() => setSelectedDate(null)}
+          onEventCreated={(event) => setEvents((prev) => [...prev, event])}
+          onEventDeleted={(id) => setEvents((prev) => prev.filter((e) => e.id !== id))}
+        />
       )}
     </div>
   );
