@@ -19,7 +19,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Reusing D-020's tab pattern and Recurring's completed-only-Archive condition avoids a third distinct interaction model for what is, at the UI level, the same feature twice. Client-stamped `archived_at` avoids a DB trigger for a single-user app where "set it when the client sets the flag" is exactly as correct and matches the one other precedent (`pages.updated_at`) already in this schema.
 
-**Status:** Proposed — code is written but the schema change has **not been applied live yet** (STATUS.md/SCHEMA.md flag this explicitly). The Archive/Unarchive/Archived-tab paths will error against the live DB (missing columns) until the SQL in `supabase/schema.sql` is run manually in the Supabase SQL editor.
+**Status:** Active. Schema change (`tasks.archived`/`archived_at`) applied manually in the Supabase SQL editor, confirmed by user 2026-08-15.
 
 ---
 

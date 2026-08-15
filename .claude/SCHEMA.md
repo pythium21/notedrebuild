@@ -33,8 +33,8 @@ tag	text	free-text label; commonly a project name, deliberately no FK
 done	boolean not null default false	
 date	date	due/created date shown in UI
 flagged_today	boolean not null default false	drives the Today view alongside actions.flagged_today; confirmed live 2026-08-05
-archived	boolean not null default false	soft-delete alongside the existing hard Delete (DECISIONS.md D-021) — archiving a completed task hides it from the active `/tasks` list without losing the row; surfaced in a read-only "Archived" tab. NOT YET CONFIRMED LIVE — apply supabase/schema.sql's D-021 block manually, then update this line.
-archived_at	timestamptz, nullable	stamped client-side when archived (matches the app-stamps-timestamps convention used by `pages.updated_at`), cleared on unarchive. Drives the Archived tab's ordering and "completed on" display. NOT YET CONFIRMED LIVE — see `archived` above.
+archived	boolean not null default false	soft-delete alongside the existing hard Delete (DECISIONS.md D-021) — archiving a completed task hides it from the active `/tasks` list without losing the row; surfaced in a read-only "Archived" tab. Confirmed live 2026-08-15.
+archived_at	timestamptz, nullable	stamped client-side when archived (matches the app-stamps-timestamps convention used by `pages.updated_at`), cleared on unarchive. Drives the Archived tab's ordering and "completed on" display. Confirmed live 2026-08-15.
 actions
 New child entity of projects (DECISIONS.md D-011) — deliberately simpler than tasks (no priority). Confirmed live 2026-08-05 with RLS policies in place.
 Column	Type	Notes
