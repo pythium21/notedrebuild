@@ -258,15 +258,9 @@ export default function TasksPage() {
                       className={`item item--task${task.done ? ' is-done' : ''}${expandedId === task.id ? ' is-expanded' : ''}`}
                       onClick={() => handleToggleExpand(task.id)}
                     >
-                      <label className="item__main">
-                        <input
-                          type="checkbox"
-                          checked={task.done}
-                          onChange={() => handleToggle(task)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                      <div className="item__main">
                         <span className="item__name">{task.name}</span>
-                      </label>
+                      </div>
                       <div className="item__meta">
                         <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
                           {task.tag || '–'}
@@ -288,6 +282,13 @@ export default function TasksPage() {
                     <div className={`item-accordion${expandedId === task.id ? ' is-open' : ''}`}>
                       <div className="item-accordion__body">
                         <div className="item-accordion__actions">
+                          <button
+                            type="button"
+                            className="item__action"
+                            onClick={() => handleToggle(task)}
+                          >
+                            {task.done ? 'Uncomplete' : 'Complete'}
+                          </button>
                           <button
                             type="button"
                             className="item__action"

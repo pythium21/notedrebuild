@@ -357,20 +357,14 @@ export function RecurringItems() {
                   className={`item item--task${item.completedToday ? ' is-done' : ''}${expandedId === item.id ? ' is-expanded' : ''}`}
                   onClick={() => handleToggleExpand(item.id)}
                 >
-                  <label className="item__main">
-                    <input
-                      type="checkbox"
-                      checked={item.completedToday}
-                      onChange={() => handleToggle(item)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
+                  <div className="item__main">
                     <span className="item__text">
                       <span className="item__name">{item.title}</span>
                       {progress[item.id] && (
                         <span className="item__progress">{progress[item.id]}</span>
                       )}
                     </span>
-                  </label>
+                  </div>
                   <div className="item__actions" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
@@ -412,17 +406,16 @@ export function RecurringItems() {
                       <button
                         type="button"
                         className="item__action"
-                        onClick={() => handleEditStart(item)}
+                        onClick={() => handleToggle(item)}
                       >
-                        Edit
+                        {item.completedToday ? 'Uncomplete' : 'Complete'}
                       </button>
                       <button
                         type="button"
-                        className="item__action item__action--danger"
-                        onClick={() => handleArchive(item)}
-                        disabled={archivingId === item.id}
+                        className="item__action"
+                        onClick={() => handleEditStart(item)}
                       >
-                        {archivingId === item.id ? 'Archiving…' : 'Archive'}
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -432,6 +425,16 @@ export function RecurringItems() {
                       >
                         {deletingId === item.id ? 'Deleting…' : 'Delete'}
                       </button>
+                      {item.completedToday && (
+                        <button
+                          type="button"
+                          className="item__action item__action--danger"
+                          onClick={() => handleArchive(item)}
+                          disabled={archivingId === item.id}
+                        >
+                          {archivingId === item.id ? 'Archiving…' : 'Archive'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

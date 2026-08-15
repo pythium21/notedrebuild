@@ -490,11 +490,6 @@ a {
   min-width: 0;
 }
 
-.item--task .item__main input[type='checkbox'] {
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-}
-
 .item--task .item__meta {
   grid-area: meta;
   display: flex;
