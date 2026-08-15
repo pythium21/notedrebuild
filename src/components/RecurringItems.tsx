@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   archiveChecklistItem,
   createChecklistItem,
+  deleteChecklistItem,
   getCompletionRate,
   getStreak,
   listRecurringForToday,
@@ -89,6 +90,7 @@ export function RecurringItems() {
   const [editTitle, setEditTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -233,6 +235,23 @@ export function RecurringItems() {
       setError((e as Error).message);
     } finally {
       setArchivingId(null);
+    }
+  }
+
+  async function handleDelete(item: ChecklistItemToday) {
+    if (deletingId) return;
+    if (!window.confirm(`Delete "${item.title}"? This removes its full completion history and can't be undone — use Archive instead to keep the history.`)) {
+      return;
+    }
+    setError(null);
+    setDeletingId(item.id);
+    try {
+      await deleteChecklistItem(item.id);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -403,6 +422,14 @@ export function RecurringItems() {
                         disabled={archivingId === item.id}
                       >
                         {archivingId === item.id ? 'Archiving…' : 'Archive'}
+                      </button>
+                      <button
+                        type="button"
+                        className="item__action item__action--danger"
+                        onClick={() => handleDelete(item)}
+                        disabled={deletingId === item.id}
+                      >
+                        {deletingId === item.id ? 'Deleting…' : 'Delete'}
                       </button>
                     </div>
                   </div>

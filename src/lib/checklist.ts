@@ -195,10 +195,20 @@ export async function setChecklistItemSortOrder(id: string, sortOrder: number): 
   if (error) throw error;
 }
 
-// Archive, never hard-delete — completion history must survive for streak/
-// completion-rate views (D-016, carried forward by D-018).
+// Archive, the default soft-delete — completion history is preserved for
+// streak/completion-rate views (D-016, carried forward by D-018).
 export async function archiveChecklistItem(id: string): Promise<void> {
   const { error } = await supabase.from('checklist_items').update({ archived: true }).eq('id', id);
+  if (error) throw error;
+}
+
+// Hard delete, alongside archive (D-020) — for rows that shouldn't exist at
+// all (wrong frequency, duplicate, test junk), not a replacement for
+// Archive's history-preserving default. checklist_completions rows are
+// removed by the existing `on delete cascade` FK (SCHEMA.md) — no separate
+// delete call needed here.
+export async function deleteChecklistItem(id: string): Promise<void> {
+  const { error } = await supabase.from('checklist_items').delete().eq('id', id);
   if (error) throw error;
 }
 
