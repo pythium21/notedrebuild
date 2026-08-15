@@ -342,3 +342,16 @@ do $$ begin
     create policy events_delete_own on public.events for delete using (user_id = auth.uid());
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Tasks: archive alongside delete (DECISIONS.md D-021)
+--
+-- To be applied manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule. Archiving a completed task hides it
+-- from the active list without losing the row — unlike Recurring Items,
+-- tasks have no child completion-history table; the row itself IS the
+-- history, so archived_at is what lets the Archived tab show "completed on".
+-- ---------------------------------------------------------------------------
+
+alter table tasks add column if not exists archived boolean not null default false;
+alter table tasks add column if not exists archived_at timestamptz;

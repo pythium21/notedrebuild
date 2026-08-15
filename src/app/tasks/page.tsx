@@ -4,11 +4,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { getActionByLinkedTaskId, setActionCompleted } from '@/lib/actions';
 import { RecurringItems } from '@/components/RecurringItems';
 import {
+  archiveTask,
   createTask,
   deleteTask,
+  listArchivedTasks,
   listTasks,
   setTaskDone,
   setTaskFlaggedToday,
+  unarchiveTask,
   updateTask,
   type Task,
 } from '@/lib/tasks';
@@ -26,11 +29,16 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-type TasksTab = 'tasks' | 'recurring';
+type TasksTab = 'tasks' | 'recurring' | 'archived';
+
+function formatArchivedDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function TasksPage() {
   const [activeTab, setActiveTab] = useState<TasksTab>('tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [tag, setTag] = useState('');
@@ -44,11 +52,15 @@ export default function TasksPage() {
   const [editDate, setEditDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    listTasks()
-      .then(setTasks)
+    Promise.all([listTasks(), listArchivedTasks()])
+      .then(([t, archived]) => {
+        setTasks(t);
+        setArchivedTasks(archived);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -153,6 +165,41 @@ export default function TasksPage() {
     }
   }
 
+  async function handleArchive(task: Task) {
+    if (archivingId) return;
+    if (!window.confirm(`Archive "${task.name}"? It moves to the Archived tab and won't show in the active list.`)) {
+      return;
+    }
+    setError(null);
+    setArchivingId(task.id);
+    try {
+      await archiveTask(task.id);
+      const archivedTask = { ...task, archived: true, archived_at: new Date().toISOString() };
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      setArchivedTasks((prev) => [archivedTask, ...prev]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
+  async function handleUnarchive(task: Task) {
+    if (archivingId) return;
+    setError(null);
+    setArchivingId(task.id);
+    try {
+      await unarchiveTask(task.id);
+      const restoredTask = { ...task, archived: false, archived_at: null };
+      setArchivedTasks((prev) => prev.filter((t) => t.id !== task.id));
+      setTasks((prev) => [restoredTask, ...prev]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
   function handleToggleExpand(taskId: string) {
     setExpandedId((prev) => (prev === taskId ? null : taskId));
   }
@@ -176,10 +223,54 @@ export default function TasksPage() {
         >
           Recurring
         </button>
+        <button
+          type="button"
+          className={`chip${activeTab === 'archived' ? ' is-selected' : ''}`}
+          onClick={() => setActiveTab('archived')}
+        >
+          Archived
+        </button>
       </div>
 
       {activeTab === 'recurring' ? (
         <RecurringItems />
+      ) : activeTab === 'archived' ? (
+        <>
+          {error && <p className="auth-error">{error}</p>}
+
+          {loading ? null : archivedTasks.length === 0 ? (
+            <p className="list-empty">No archived tasks yet — completed tasks you archive show up here.</p>
+          ) : (
+            <>
+              <p className="page-hint">
+                {archivedTasks.length} completed task{archivedTasks.length === 1 ? '' : 's'} archived.
+              </p>
+              <div className="list">
+                {archivedTasks.map((task) => (
+                  <div key={task.id} className="item">
+                    <div className="item__main">
+                      <span className="item__name">{task.name}</span>
+                      {task.tag && <span className="item__tag">{task.tag}</span>}
+                    </div>
+                    <span className="item__created">
+                      Completed {task.archived_at ? formatArchivedDate(task.archived_at) : '–'}
+                    </span>
+                    <div className="item__actions">
+                      <button
+                        type="button"
+                        className="item__action"
+                        onClick={() => handleUnarchive(task)}
+                        disabled={archivingId === task.id}
+                      >
+                        {archivingId === task.id ? 'Restoring…' : 'Unarchive'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>
       ) : (
         <>
           <form className="add-form" onSubmit={handleAdd}>
@@ -304,6 +395,16 @@ export default function TasksPage() {
                           >
                             {deletingId === task.id ? 'Deleting…' : 'Delete'}
                           </button>
+                          {task.done && (
+                            <button
+                              type="button"
+                              className="item__action item__action--danger"
+                              onClick={() => handleArchive(task)}
+                              disabled={archivingId === task.id}
+                            >
+                              {archivingId === task.id ? 'Archiving…' : 'Archive'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

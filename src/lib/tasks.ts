@@ -9,13 +9,29 @@ export interface Task {
   date: string | null;
   flagged_today: boolean;
   created_at: string;
+  archived: boolean;
+  archived_at: string | null;
 }
 
 export async function listTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
+    .eq('archived', false)
     .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Task[];
+}
+
+// Archived tasks (DECISIONS.md D-021) — completed tasks tucked out of the
+// active list but kept as history, not deleted. Ordered by archived_at so
+// the most recently completed shows first.
+export async function listArchivedTasks(): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('archived', true)
+    .order('archived_at', { ascending: false });
   if (error) throw error;
   return data as Task[];
 }
@@ -52,6 +68,7 @@ export async function listTasksInRange(startDate: string, endDate: string): Prom
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
+    .eq('archived', false)
     .not('date', 'is', null)
     .gte('date', startDate)
     .lte('date', endDate)
@@ -113,5 +130,24 @@ export async function updateTask(
 
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from('tasks').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Soft-delete, alongside the hard Delete above (DECISIONS.md D-021) — keeps
+// the row as history instead of removing it. archived_at is stamped
+// client-side, matching pages.ts's updated_at convention (no DB trigger).
+export async function archiveTask(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('tasks')
+    .update({ archived: true, archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function unarchiveTask(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('tasks')
+    .update({ archived: false, archived_at: null })
+    .eq('id', id);
   if (error) throw error;
 }

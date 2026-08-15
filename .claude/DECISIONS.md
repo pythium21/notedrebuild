@@ -6,6 +6,23 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-021 · Tasks gain Archive alongside Delete, for completed tasks (2026-08-15)
+
+**Context:** Recurring Items got Archive (D-016, conditionally surfaced by D-020) specifically to preserve `checklist_completions` history — the whole reason Archive exists there is a child table Delete would otherwise cascade away. Tasks have no equivalent history table; a done task's own row *is* the record. Asked directly what Archive should do for a completed task, the answer was "I want history, because I can see what I completed — track performance etc," ruling out a plain "hide it" flag with no way to look back at it: the point is a durable, browsable record of completed work, not just decluttering the active list.
+
+**Decision:**
+- **Schema:** `tasks` gains `archived boolean not null default false` and `archived_at timestamptz, nullable` (stamped client-side on archive, cleared on unarchive — matches `pages.updated_at`'s app-stamps-timestamps convention, no DB trigger). SQL appended to `supabase/schema.sql`, to be applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule — **not yet applied as of this commit**.
+- **Data access:** `listTasks()` and `listTasksInRange()` (the Calendar tab's due-task feed) now filter `archived = false`, so an archived task disappears from the active list and from Calendar due-date rows. A new `listArchivedTasks()` fetches `archived = true`, ordered by `archived_at` descending. `archiveTask()`/`unarchiveTask()` in `src/lib/tasks.ts` toggle the flag and stamp/clear `archived_at`.
+- **UI:** `/tasks` gains a third tab, "Archived" (alongside Tasks/Recurring, D-020's tab pattern), showing a flat read-only-ish list — name, tag, "Completed <date>" (from `archived_at`), and a lone Unarchive button per row (no accordion; there's nothing further to drill into) — plus a `.page-hint` count line ("N completed tasks archived") as the one piece of "track performance" visibility asked for. Bigger analytics (weekly/monthly completion charts) was explicitly not what was asked for and isn't built here — the count line is the smallest thing that answers "how much have I gotten done," full stop.
+- **Archive entry point:** in a Task's expanded accordion panel (D-020), *only* once `task.done` is true — mirrors Recurring's completed-only Archive condition (D-020's Update) exactly, so both lists read the same way: you can't archive work you haven't finished. Order: Complete/Uncomplete → Edit → Delete → Archive (when eligible).
+- **Delete is unchanged and still separate:** Delete remains the hard, unrecoverable removal (D-020); Archive is the new soft path when the point is keeping a record, not getting rid of one.
+
+**Rationale:** Reusing D-020's tab pattern and Recurring's completed-only-Archive condition avoids a third distinct interaction model for what is, at the UI level, the same feature twice. Client-stamped `archived_at` avoids a DB trigger for a single-user app where "set it when the client sets the flag" is exactly as correct and matches the one other precedent (`pages.updated_at`) already in this schema.
+
+**Status:** Proposed — code is written but the schema change has **not been applied live yet** (STATUS.md/SCHEMA.md flag this explicitly). The Archive/Unarchive/Archived-tab paths will error against the live DB (missing columns) until the SQL in `supabase/schema.sql` is run manually in the Supabase SQL editor.
+
+---
+
 ## D-020 · Recurring Items moves under Tasks as a tab; nav reduced to 5 items; hard delete added alongside archive (2026-08-15)
 
 **Context:** D-018 gave Recurring Items its own top-level route and nav entry, justified at the time by the "reads as another way to add a task" complaint. In daily use that justification didn't hold up the nav slot — Recurring Items is a thin, low-traffic list, and Tasks/Recurring are close enough in shape (both are checkable rows with an add-flow) that a second full nav item for it is more weight than the feature earns. Separately, Recurring Items had no delete at all — D-016's "archive only, never hard-delete" ruling was made when the feature was new and history-preservation felt like the only sane default, but real use surfaced genuine mistakes (wrong frequency, duplicate item, testing junk) that don't deserve to sit archived forever with no way to actually remove them.
