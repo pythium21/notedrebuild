@@ -6,6 +6,22 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-020 · Recurring Items moves under Tasks as a tab; nav reduced to 5 items; hard delete added alongside archive (2026-08-15)
+
+**Context:** D-018 gave Recurring Items its own top-level route and nav entry, justified at the time by the "reads as another way to add a task" complaint. In daily use that justification didn't hold up the nav slot — Recurring Items is a thin, low-traffic list, and Tasks/Recurring are close enough in shape (both are checkable rows with an add-flow) that a second full nav item for it is more weight than the feature earns. Separately, Recurring Items had no delete at all — D-016's "archive only, never hard-delete" ruling was made when the feature was new and history-preservation felt like the only sane default, but real use surfaced genuine mistakes (wrong frequency, duplicate item, testing junk) that don't deserve to sit archived forever with no way to actually remove them.
+
+**Decision:**
+- **Placement:** `/recurring` is removed as a route. `RecurringItems` (`src/components/RecurringItems.tsx`) is now rendered as a second tab on `/tasks` (`src/app/tasks/page.tsx`), alongside the existing Tasks list — same local-state tab pattern as D-019's Today/Calendar tabs (`.today-tabs`/`.chip` reused verbatim, no new toggle style). Tab selection resets on reload, matching D-019.
+- **Nav:** `NavShell.tsx`'s nav array drops the "Recurring" (↻) entry. Nav goes from 6 items to 5: Today, Tasks, Projects, Saves, Notes.
+- **Delete, alongside archive (partially supersedes D-016's "archive only" ruling):** Recurring Items now support both actions — Archive (soft, preserves completion history, unchanged from D-016) and a new hard Delete (`deleteChecklistItem()` in `src/lib/checklist.ts`, `window.confirm()` per D-010). Delete removes the `checklist_items` row; `checklist_completions` rows are removed via the existing `on delete cascade` FK (SCHEMA.md) — no new schema or manual SQL needed. D-016's rationale for defaulting to archive (preserving streak/rate history) still holds as the *default* destructive action; Delete is the explicit "actually get rid of this" escape hatch for rows that never should have existed, not a replacement for Archive.
+- **Row interaction (see also the inline-accordion decision below):** both Tasks and Recurring rows gained tap-to-expand; Edit/Delete (Tasks) and Edit/Delete/Archive (Recurring) moved out of the always-visible row into the expanded detail panel, decluttering the collapsed row.
+
+**Rationale:** Reusing D-019's tab pattern avoids inventing a second placement mechanism for the same "promote once proven, demote if it doesn't earn its slot" judgment call the BACKLOG.md Horizon note already flagged as the natural next move for Calendar. Cascading through the existing FK avoids a schema change entirely — the delete-safety concern D-016 was solving (accidental data loss) is still met, just by requiring an explicit confirm rather than by refusing to ever delete.
+
+**Status:** Active. No schema change — relies on the existing `checklist_completions.item_id on delete cascade` FK (SCHEMA.md, confirmed live 2026-08-09/2026-08-12). Supersedes D-018's Placement bullet and the nav-entry consequence of D-016's placement; D-018's schema/rename/UI-fix bullets stand. Partially supersedes D-016's Deletion bullet (archive is no longer the *only* deletion path) — D-016's schema rationale and reset semantics stand.
+
+---
+
 ## D-019 · Calendar Phase 1 ships as a Today-page tab, not a Dashboard route (2026-08-12)
 
 **Context:** Requested as a "Dashboard tab," but this app has no Dashboard route — `Dashboard` is still an unbuilt Horizon item carried over from the old repo (BACKLOG.md). The closest thing this app has to a dashboard is the Today page (`/`, DECISIONS.md D-011), which already aggregates flagged tasks/actions and an Upcoming section. Building a new Dashboard route now to house one tab would be a bigger scope jump than the feature needs and cuts against capture-first discipline (CLAUDE.md, D-002) — Dashboard hasn't been pulled in by actual usage yet.

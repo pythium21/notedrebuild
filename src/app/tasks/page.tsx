@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { getActionByLinkedTaskId, setActionCompleted } from '@/lib/actions';
+import { RecurringItems } from '@/components/RecurringItems';
 import {
   createTask,
   deleteTask,
@@ -25,7 +26,10 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+type TasksTab = 'tasks' | 'recurring';
+
 export default function TasksPage() {
+  const [activeTab, setActiveTab] = useState<TasksTab>('tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
@@ -152,118 +156,141 @@ export default function TasksPage() {
     <div>
       <h1 className="page-title">Tasks</h1>
 
-      <form className="add-form" onSubmit={handleAdd}>
-        <input
-          type="text"
-          className="add-form__name"
-          placeholder="Add a task…"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Tag (optional)"
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-        />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button type="submit" className="add-form__submit" disabled={isAdding}>
-          {isAdding ? 'Adding…' : 'Add'}
+      <div className="today-tabs" role="group" aria-label="Tasks view">
+        <button
+          type="button"
+          className={`chip${activeTab === 'tasks' ? ' is-selected' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          Tasks
         </button>
-      </form>
+        <button
+          type="button"
+          className={`chip${activeTab === 'recurring' ? ' is-selected' : ''}`}
+          onClick={() => setActiveTab('recurring')}
+        >
+          Recurring
+        </button>
+      </div>
 
-      {error && <p className="auth-error">{error}</p>}
-
-      {loading ? null : tasks.length === 0 ? (
-        <p className="list-empty">No tasks yet — add one above.</p>
+      {activeTab === 'recurring' ? (
+        <RecurringItems />
       ) : (
-        <div className="list">
-          <div className="task-grid-header" aria-hidden="true">
-            <span>Task</span>
-            <span>Tag</span>
-            <span>Date</span>
-            <span>Created</span>
-            <span>Actions</span>
-          </div>
-          {tasks.map((task) =>
-            editingId === task.id ? (
-              <form
-                key={task.id}
-                className="item item-edit-form"
-                onSubmit={(e) => handleEditSave(e, task)}
-              >
-                <input
-                  type="text"
-                  className="item-edit-form__name"
-                  autoFocus
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Tag (optional)"
-                  value={editTag}
-                  onChange={(e) => setEditTag(e.target.value)}
-                />
-                <input
-                  type="date"
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                />
-                <button type="submit" className="item-edit-form__save" disabled={isSaving}>
-                  {isSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  className="item-edit-form__cancel"
-                  onClick={handleEditCancel}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : (
-              <div key={task.id} className={`item item--task${task.done ? ' is-done' : ''}`}>
-                <label className="item__main">
-                  <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
-                  <span className="item__name">{task.name}</span>
-                </label>
-                <div className="item__meta">
-                  <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
-                    {task.tag || '–'}
-                  </span>
-                  <span className="item__date">{task.date || '–'}</span>
-                  <span className="item__created">{formatRelativeTime(task.created_at)}</span>
-                </div>
-                <div className="item__actions">
-                  <button
-                    type="button"
-                    className={`item__action item__action--flag${task.flagged_today ? ' is-flagged' : ''}`}
-                    onClick={() => handleToggleFlag(task)}
-                    title={task.flagged_today ? 'Remove from Today' : 'Flag for Today'}
-                  >
-                    🚩
-                  </button>
-                  <button
-                    type="button"
-                    className="item__action"
-                    onClick={() => handleEditStart(task)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="item__action item__action--danger"
-                    onClick={() => handleDelete(task)}
-                    disabled={deletingId === task.id}
-                  >
-                    {deletingId === task.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                </div>
+        <>
+          <form className="add-form" onSubmit={handleAdd}>
+            <input
+              type="text"
+              className="add-form__name"
+              placeholder="Add a task…"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Tag (optional)"
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
+            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <button type="submit" className="add-form__submit" disabled={isAdding}>
+              {isAdding ? 'Adding…' : 'Add'}
+            </button>
+          </form>
+
+          {error && <p className="auth-error">{error}</p>}
+
+          {loading ? null : tasks.length === 0 ? (
+            <p className="list-empty">No tasks yet — add one above.</p>
+          ) : (
+            <div className="list">
+              <div className="task-grid-header" aria-hidden="true">
+                <span>Task</span>
+                <span>Tag</span>
+                <span>Date</span>
+                <span>Created</span>
+                <span>Actions</span>
               </div>
-            )
+              {tasks.map((task) =>
+                editingId === task.id ? (
+                  <form
+                    key={task.id}
+                    className="item item-edit-form"
+                    onSubmit={(e) => handleEditSave(e, task)}
+                  >
+                    <input
+                      type="text"
+                      className="item-edit-form__name"
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Tag (optional)"
+                      value={editTag}
+                      onChange={(e) => setEditTag(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                    />
+                    <button type="submit" className="item-edit-form__save" disabled={isSaving}>
+                      {isSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      className="item-edit-form__cancel"
+                      onClick={handleEditCancel}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <div key={task.id} className={`item item--task${task.done ? ' is-done' : ''}`}>
+                    <label className="item__main">
+                      <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
+                      <span className="item__name">{task.name}</span>
+                    </label>
+                    <div className="item__meta">
+                      <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
+                        {task.tag || '–'}
+                      </span>
+                      <span className="item__date">{task.date || '–'}</span>
+                      <span className="item__created">{formatRelativeTime(task.created_at)}</span>
+                    </div>
+                    <div className="item__actions">
+                      <button
+                        type="button"
+                        className={`item__action item__action--flag${task.flagged_today ? ' is-flagged' : ''}`}
+                        onClick={() => handleToggleFlag(task)}
+                        title={task.flagged_today ? 'Remove from Today' : 'Flag for Today'}
+                      >
+                        🚩
+                      </button>
+                      <button
+                        type="button"
+                        className="item__action"
+                        onClick={() => handleEditStart(task)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="item__action item__action--danger"
+                        onClick={() => handleDelete(task)}
+                        disabled={deletingId === task.id}
+                      >
+                        {deletingId === task.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

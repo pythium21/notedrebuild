@@ -221,7 +221,6 @@ export function RecurringItems() {
 
   return (
     <div>
-      <h1 className="page-title">Recurring</h1>
       <p className="page-hint">
         Items on a fixed schedule — daily, weekly, or monthly. Not a task list.
       </p>
