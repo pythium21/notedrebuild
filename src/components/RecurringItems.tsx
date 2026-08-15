@@ -40,6 +40,22 @@ function currentQuarterRange(): { start: string; end: string } {
   };
 }
 
+function formatFrequency(item: ChecklistItemToday): string {
+  if (item.frequency === 'daily') return 'Daily';
+  if (item.frequency === 'weekly') {
+    const days = (item.days_of_week || [])
+      .map((d) => WEEKDAYS.find((w) => w.value === d)?.label)
+      .filter(Boolean)
+      .join(', ');
+    return `Weekly — ${days || 'no days set'}`;
+  }
+  return `Monthly — day ${item.day_of_month ?? '–'}`;
+}
+
+function formatCreatedDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 // Standalone data hook — no shared queries with tasks.
 function useRecurringItems() {
   const [items, setItems] = useState<ChecklistItemToday[]>([]);
@@ -73,6 +89,7 @@ export function RecurringItems() {
   const [editTitle, setEditTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (items.length === 0) return;
@@ -219,6 +236,10 @@ export function RecurringItems() {
     }
   }
 
+  function handleToggleExpand(itemId: string) {
+    setExpandedId((prev) => (prev === itemId ? null : itemId));
+  }
+
   return (
     <div>
       <p className="page-hint">
@@ -312,57 +333,79 @@ export function RecurringItems() {
                 </button>
               </form>
             ) : (
-              <div
-                key={item.id}
-                className={`item item--task${item.completedToday ? ' is-done' : ''}`}
-              >
-                <label className="item__main">
-                  <input
-                    type="checkbox"
-                    checked={item.completedToday}
-                    onChange={() => handleToggle(item)}
-                  />
-                  <span className="item__text">
-                    <span className="item__name">{item.title}</span>
-                    {progress[item.id] && (
-                      <span className="item__progress">{progress[item.id]}</span>
-                    )}
-                  </span>
-                </label>
-                <div className="item__actions">
-                  <button
-                    type="button"
-                    className="item__action"
-                    onClick={() => handleMove(item, -1)}
-                    disabled={index === 0}
-                    title="Move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="item__action"
-                    onClick={() => handleMove(item, 1)}
-                    disabled={index === items.length - 1}
-                    title="Move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="item__action"
-                    onClick={() => handleEditStart(item)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="item__action item__action--danger"
-                    onClick={() => handleArchive(item)}
-                    disabled={archivingId === item.id}
-                  >
-                    {archivingId === item.id ? 'Archiving…' : 'Archive'}
-                  </button>
+              <div key={item.id}>
+                <div
+                  className={`item item--task${item.completedToday ? ' is-done' : ''}${expandedId === item.id ? ' is-expanded' : ''}`}
+                  onClick={() => handleToggleExpand(item.id)}
+                >
+                  <label className="item__main" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={item.completedToday}
+                      onChange={() => handleToggle(item)}
+                    />
+                    <span className="item__text">
+                      <span className="item__name">{item.title}</span>
+                      {progress[item.id] && (
+                        <span className="item__progress">{progress[item.id]}</span>
+                      )}
+                    </span>
+                  </label>
+                  <div className="item__actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="item__action"
+                      onClick={() => handleMove(item, -1)}
+                      disabled={index === 0}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="item__action"
+                      onClick={() => handleMove(item, 1)}
+                      disabled={index === items.length - 1}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
+                <div className={`item-accordion${expandedId === item.id ? ' is-open' : ''}`}>
+                  <div className="item-accordion__body">
+                    <div className="item-accordion__row">
+                      <span className="item-accordion__row-label">Frequency</span>
+                      <span>{formatFrequency(item)}</span>
+                    </div>
+                    <div className="item-accordion__row">
+                      <span className="item-accordion__row-label">
+                        {item.frequency === 'daily' ? 'Streak' : 'Completion rate'}
+                      </span>
+                      <span>{progress[item.id] || '–'}</span>
+                    </div>
+                    <div className="item-accordion__row">
+                      <span className="item-accordion__row-label">Created</span>
+                      <span>{formatCreatedDate(item.created_at)}</span>
+                    </div>
+                    <div className="item-accordion__actions">
+                      <button
+                        type="button"
+                        className="item__action"
+                        onClick={() => handleEditStart(item)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="item__action item__action--danger"
+                        onClick={() => handleArchive(item)}
+                        disabled={archivingId === item.id}
+                      >
+                        {archivingId === item.id ? 'Archiving…' : 'Archive'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ),

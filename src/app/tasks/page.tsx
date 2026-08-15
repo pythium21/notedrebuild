@@ -44,6 +44,7 @@ export default function TasksPage() {
   const [editDate, setEditDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     listTasks()
@@ -152,6 +153,10 @@ export default function TasksPage() {
     }
   }
 
+  function handleToggleExpand(taskId: string) {
+    setExpandedId((prev) => (prev === taskId ? null : taskId));
+  }
+
   return (
     <div>
       <h1 className="page-title">Tasks</h1>
@@ -248,42 +253,53 @@ export default function TasksPage() {
                     </button>
                   </form>
                 ) : (
-                  <div key={task.id} className={`item item--task${task.done ? ' is-done' : ''}`}>
-                    <label className="item__main">
-                      <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
-                      <span className="item__name">{task.name}</span>
-                    </label>
-                    <div className="item__meta">
-                      <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
-                        {task.tag || '–'}
-                      </span>
-                      <span className="item__date">{task.date || '–'}</span>
-                      <span className="item__created">{formatRelativeTime(task.created_at)}</span>
+                  <div key={task.id}>
+                    <div
+                      className={`item item--task${task.done ? ' is-done' : ''}${expandedId === task.id ? ' is-expanded' : ''}`}
+                      onClick={() => handleToggleExpand(task.id)}
+                    >
+                      <label className="item__main" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
+                        <span className="item__name">{task.name}</span>
+                      </label>
+                      <div className="item__meta">
+                        <span className={`item__tag${task.tag ? '' : ' item__tag--empty'}`}>
+                          {task.tag || '–'}
+                        </span>
+                        <span className="item__date">{task.date || '–'}</span>
+                        <span className="item__created">{formatRelativeTime(task.created_at)}</span>
+                      </div>
+                      <div className="item__actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className={`item__action item__action--flag${task.flagged_today ? ' is-flagged' : ''}`}
+                          onClick={() => handleToggleFlag(task)}
+                          title={task.flagged_today ? 'Remove from Today' : 'Flag for Today'}
+                        >
+                          🚩
+                        </button>
+                      </div>
                     </div>
-                    <div className="item__actions">
-                      <button
-                        type="button"
-                        className={`item__action item__action--flag${task.flagged_today ? ' is-flagged' : ''}`}
-                        onClick={() => handleToggleFlag(task)}
-                        title={task.flagged_today ? 'Remove from Today' : 'Flag for Today'}
-                      >
-                        🚩
-                      </button>
-                      <button
-                        type="button"
-                        className="item__action"
-                        onClick={() => handleEditStart(task)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="item__action item__action--danger"
-                        onClick={() => handleDelete(task)}
-                        disabled={deletingId === task.id}
-                      >
-                        {deletingId === task.id ? 'Deleting…' : 'Delete'}
-                      </button>
+                    <div className={`item-accordion${expandedId === task.id ? ' is-open' : ''}`}>
+                      <div className="item-accordion__body">
+                        <div className="item-accordion__actions">
+                          <button
+                            type="button"
+                            className="item__action"
+                            onClick={() => handleEditStart(task)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="item__action item__action--danger"
+                            onClick={() => handleDelete(task)}
+                            disabled={deletingId === task.id}
+                          >
+                            {deletingId === task.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )

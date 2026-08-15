@@ -518,6 +518,51 @@ a {
   padding: 0.15rem 0;
 }
 
+/* ---- Inline accordion expand (Tasks + Recurring rows) ---- */
+
+.item.is-expanded {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.item-accordion {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.item-accordion.is-open {
+  max-height: 320px;
+}
+
+.item-accordion__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-elevated));
+  font-size: 0.85rem;
+}
+
+.item-accordion__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.item-accordion__row-label {
+  color: var(--text-muted);
+}
+
+.item-accordion__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
 @media (min-width: 600px) {
   .task-grid-header,
   .item.item--task {
