@@ -357,11 +357,12 @@ export function RecurringItems() {
                   className={`item item--task${item.completedToday ? ' is-done' : ''}${expandedId === item.id ? ' is-expanded' : ''}`}
                   onClick={() => handleToggleExpand(item.id)}
                 >
-                  <label className="item__main" onClick={(e) => e.stopPropagation()}>
+                  <label className="item__main">
                     <input
                       type="checkbox"
                       checked={item.completedToday}
                       onChange={() => handleToggle(item)}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <span className="item__text">
                       <span className="item__name">{item.title}</span>

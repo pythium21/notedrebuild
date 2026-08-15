@@ -258,8 +258,13 @@ export default function TasksPage() {
                       className={`item item--task${task.done ? ' is-done' : ''}${expandedId === task.id ? ' is-expanded' : ''}`}
                       onClick={() => handleToggleExpand(task.id)}
                     >
-                      <label className="item__main" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={task.done} onChange={() => handleToggle(task)} />
+                      <label className="item__main">
+                        <input
+                          type="checkbox"
+                          checked={task.done}
+                          onChange={() => handleToggle(task)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         <span className="item__name">{task.name}</span>
                       </label>
                       <div className="item__meta">
