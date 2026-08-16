@@ -95,6 +95,31 @@ location	text, nullable
 description	text, nullable	
 source	text not null default 'manual'	forward-looking for later import paths (`.ics`, Google Calendar, share-target) — no reader other than `'manual'` exists yet; see BACKLOG.md Horizon
 RLS: standard four-policy convention (`events_select_own`/`_insert_own`/`_update_own`/`_delete_own`), not the `checklist_items` single-policy shortcut — see DECISIONS.md D-019.
+entry_configs
+Recurring Item Entry Tracking (DECISIONS.md D-022) — one row per `checklist_items` row that has sub-tracking enabled (UNIQUE constraint on `checklist_item_id`). Confirmed live 2026-08-16 (applied manually via the Supabase SQL editor, along with entry_labels and recurring_entries below). Standard convention columns (`id`, `user_id`, `created_at`) plus:
+Column	Type	Notes
+checklist_item_id	uuid not null	references checklist_items(id) on delete cascade. `unique` — at most one config per item.
+type	text not null	`counter` \| `checklist` \| `numeric` (check constraint). Drives which logging UI the detail panel shows.
+target	integer not null	mandatory — every tracked item has a numeric target; auto-completion compares the current period's `recurring_entries` count against this.
+RLS: one `owner_access` policy `for all using/with check (user_id = auth.uid())`, same compact pattern as `checklist_items`.
+entry_labels
+The loggable things under an `entry_config` — a counter chip, a checklist item, or the unit descriptor for a numeric config. No `user_id` — ownership is transitive through `entry_config_id` (same pattern as `checklist_completions`).
+Column	Type	Notes
+entry_config_id	uuid not null	references entry_configs(id) on delete cascade
+name	text not null	e.g. "Cup", "Vitamin D", "steps"
+default_value	numeric, nullable	pre-filled value for a counter tap (e.g. 1); null lets the UI fall back to 1
+unit	text, nullable	display-only unit string for numeric configs (e.g. "steps")
+sort_order	integer not null default 0	display order, same self-healing-by-index convention as `checklist_items.sort_order`
+RLS: one `owner_access` policy `for all`, scoped via `entry_config_id in (select id from entry_configs where user_id = auth.uid())`.
+recurring_entries
+Append-only log of individual tracked entries (DECISIONS.md D-022) — one row per tap/log action, never updated, only inserted or deleted. Logging or deleting recalculates the current period's count and mirrors auto-completion into `checklist_completions` (`src/lib/recurringEntries.ts`), so the existing streak/rate logic keeps reading that table unchanged.
+Column	Type	Notes
+checklist_item_id	uuid not null	references checklist_items(id) on delete cascade
+entry_label_id	uuid, nullable	references entry_labels(id) on delete set null — a numeric entry logged before any label existed, or after its label was deleted, keeps its row with a null label
+value	numeric, nullable	the logged number (numeric-type entries); null for a plain counter/checklist tap
+note	text, nullable	unused by the UI as of this build, reserved for a future per-entry note field
+logged_at	timestamptz not null default now()	what "today"/"this week" period membership is computed against (local-day boundaries, same convention as `checklist.ts`'s `localToday()`)
+RLS: one `owner_access` policy `for all using/with check (user_id = auth.uid())`.
 Planned tables (not yet created)
 
 The retired vanilla repo's SCHEMA.md documents the full 13-route schema (goals, habits, expenses, workouts, journal, contacts, content, resources, vault). `pages` was the last one parked there and has now been built (DECISIONS.md D-012, see above) — remaining tables are added here one at a time, when their route is actually built — copy the section from the retired repo's SCHEMA.md at that point, don't pre-create tables.

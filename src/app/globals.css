@@ -762,6 +762,13 @@ a {
   color: var(--text-muted);
 }
 
+/* Mini progress bar under a tracked Recurring row's sub-line (DECISIONS.md
+   D-022) — same fill logic as .progress-bar, just thinner. */
+.progress-bar--thin {
+  height: 4px;
+  margin-top: 0.3rem;
+}
+
 /* ---- Project detail page ---- */
 
 .project-detail {
@@ -1529,6 +1536,101 @@ textarea.block--text {
 .item__progress {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.item__count {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ---- Entry Tracking (Recurring item sub-tracking, DECISIONS.md D-022) ---- */
+
+.recurring-items {
+  position: relative;
+}
+
+.tracking-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-basis: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.tracking-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.tracking-label-row input {
+  flex: 1 1 100px;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.recurring-detail {
+  gap: 1rem;
+}
+
+.stat-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.stat-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.stat-card__value {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.stat-card__label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.recurring-log-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entry-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.numeric-log-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.numeric-log-row input {
+  width: 6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
 }
 
 /* ---- Calendar (Today-page tab, DECISIONS.md D-019) ---- */

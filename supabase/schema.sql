@@ -1,5 +1,9 @@
--- My OS — initial schema (Projects + Tasks scaffold)
--- Run this once in the Supabase SQL editor on a fresh project.
+-- My OS — full schema, accumulated section by section as features shipped.
+-- Every statement in this file is idempotent (create table/policy guarded
+-- with if not exists, alter table with add column if not exists) — the
+-- whole file can be re-run safely against a project that already has some
+-- or all of it applied. Run in the Supabase SQL editor; nothing here is
+-- executed automatically by Claude Code (CLAUDE.md's no-migrations rule).
 
 create extension if not exists "pgcrypto";
 
@@ -18,17 +22,20 @@ create table if not exists public.projects (
 
 alter table public.projects enable row level security;
 
-create policy "projects_select_own" on public.projects
-  for select using (user_id = auth.uid());
-
-create policy "projects_insert_own" on public.projects
-  for insert with check (user_id = auth.uid());
-
-create policy "projects_update_own" on public.projects
-  for update using (user_id = auth.uid());
-
-create policy "projects_delete_own" on public.projects
-  for delete using (user_id = auth.uid());
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'projects' and policyname = 'projects_select_own') then
+    create policy "projects_select_own" on public.projects for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'projects' and policyname = 'projects_insert_own') then
+    create policy "projects_insert_own" on public.projects for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'projects' and policyname = 'projects_update_own') then
+    create policy "projects_update_own" on public.projects for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'projects' and policyname = 'projects_delete_own') then
+    create policy "projects_delete_own" on public.projects for delete using (user_id = auth.uid());
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- tasks
@@ -46,17 +53,20 @@ create table if not exists public.tasks (
 
 alter table public.tasks enable row level security;
 
-create policy "tasks_select_own" on public.tasks
-  for select using (user_id = auth.uid());
-
-create policy "tasks_insert_own" on public.tasks
-  for insert with check (user_id = auth.uid());
-
-create policy "tasks_update_own" on public.tasks
-  for update using (user_id = auth.uid());
-
-create policy "tasks_delete_own" on public.tasks
-  for delete using (user_id = auth.uid());
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'tasks' and policyname = 'tasks_select_own') then
+    create policy "tasks_select_own" on public.tasks for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'tasks' and policyname = 'tasks_insert_own') then
+    create policy "tasks_insert_own" on public.tasks for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'tasks' and policyname = 'tasks_update_own') then
+    create policy "tasks_update_own" on public.tasks for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'tasks' and policyname = 'tasks_delete_own') then
+    create policy "tasks_delete_own" on public.tasks for delete using (user_id = auth.uid());
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- saves
@@ -81,17 +91,20 @@ create table if not exists public.saves (
 
 alter table public.saves enable row level security;
 
-create policy "saves_select_own" on public.saves
-  for select using (user_id = auth.uid());
-
-create policy "saves_insert_own" on public.saves
-  for insert with check (user_id = auth.uid());
-
-create policy "saves_update_own" on public.saves
-  for update using (user_id = auth.uid());
-
-create policy "saves_delete_own" on public.saves
-  for delete using (user_id = auth.uid());
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'saves' and policyname = 'saves_select_own') then
+    create policy "saves_select_own" on public.saves for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'saves' and policyname = 'saves_insert_own') then
+    create policy "saves_insert_own" on public.saves for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'saves' and policyname = 'saves_update_own') then
+    create policy "saves_update_own" on public.saves for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'saves' and policyname = 'saves_delete_own') then
+    create policy "saves_delete_own" on public.saves for delete using (user_id = auth.uid());
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- actions + projects/tasks alterations (DECISIONS.md D-011)
@@ -127,17 +140,20 @@ create table if not exists public.actions (
 
 alter table public.actions enable row level security;
 
-create policy "actions_select_own" on public.actions
-  for select using (user_id = auth.uid());
-
-create policy "actions_insert_own" on public.actions
-  for insert with check (user_id = auth.uid());
-
-create policy "actions_update_own" on public.actions
-  for update using (user_id = auth.uid());
-
-create policy "actions_delete_own" on public.actions
-  for delete using (user_id = auth.uid());
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'actions' and policyname = 'actions_select_own') then
+    create policy "actions_select_own" on public.actions for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'actions' and policyname = 'actions_insert_own') then
+    create policy "actions_insert_own" on public.actions for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'actions' and policyname = 'actions_update_own') then
+    create policy "actions_update_own" on public.actions for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'actions' and policyname = 'actions_delete_own') then
+    create policy "actions_delete_own" on public.actions for delete using (user_id = auth.uid());
+  end if;
+end $$;
 
 alter table public.projects add column if not exists parent_id uuid references public.projects(id) on delete restrict;
 alter table public.projects add column if not exists priority text; -- nullable: high/medium/low
@@ -168,17 +184,20 @@ create table if not exists public.pages (
 
 alter table public.pages enable row level security;
 
-create policy "pages_select_own" on public.pages
-  for select using (user_id = auth.uid());
-
-create policy "pages_insert_own" on public.pages
-  for insert with check (user_id = auth.uid());
-
-create policy "pages_update_own" on public.pages
-  for update using (user_id = auth.uid());
-
-create policy "pages_delete_own" on public.pages
-  for delete using (user_id = auth.uid());
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'pages' and policyname = 'pages_select_own') then
+    create policy "pages_select_own" on public.pages for select using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'pages' and policyname = 'pages_insert_own') then
+    create policy "pages_insert_own" on public.pages for insert with check (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'pages' and policyname = 'pages_update_own') then
+    create policy "pages_update_own" on public.pages for update using (user_id = auth.uid());
+  end if;
+  if not exists (select from pg_policies where tablename = 'pages' and policyname = 'pages_delete_own') then
+    create policy "pages_delete_own" on public.pages for delete using (user_id = auth.uid());
+  end if;
+end $$;
 
 alter table public.projects add column if not exists outcome text;
 alter table public.projects add column if not exists page_id uuid references public.pages(id) on delete set null;
@@ -195,25 +214,32 @@ alter table public.project_saves enable row level security;
 
 -- No user_id column on this table — ownership is enforced transitively
 -- through project_id's FK to projects, whose RLS already scopes by user_id.
-create policy "project_saves_select_own" on public.project_saves
-  for select using (
-    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
-  );
-
-create policy "project_saves_insert_own" on public.project_saves
-  for insert with check (
-    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
-  );
-
-create policy "project_saves_update_own" on public.project_saves
-  for update using (
-    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
-  );
-
-create policy "project_saves_delete_own" on public.project_saves
-  for delete using (
-    exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
-  );
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'project_saves' and policyname = 'project_saves_select_own') then
+    create policy "project_saves_select_own" on public.project_saves
+      for select using (
+        exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+      );
+  end if;
+  if not exists (select from pg_policies where tablename = 'project_saves' and policyname = 'project_saves_insert_own') then
+    create policy "project_saves_insert_own" on public.project_saves
+      for insert with check (
+        exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+      );
+  end if;
+  if not exists (select from pg_policies where tablename = 'project_saves' and policyname = 'project_saves_update_own') then
+    create policy "project_saves_update_own" on public.project_saves
+      for update using (
+        exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+      );
+  end if;
+  if not exists (select from pg_policies where tablename = 'project_saves' and policyname = 'project_saves_delete_own') then
+    create policy "project_saves_delete_own" on public.project_saves
+      for delete using (
+        exists (select 1 from public.projects where projects.id = project_saves.project_id and projects.user_id = auth.uid())
+      );
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- actions.due_date (DECISIONS.md D-013)
@@ -355,3 +381,76 @@ end $$;
 
 alter table tasks add column if not exists archived boolean not null default false;
 alter table tasks add column if not exists archived_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- Recurring Item Entry Tracking (DECISIONS.md D-022)
+--
+-- Applied live 2026-08-16 (confirmed by user). Ran directly in the Supabase
+-- SQL editor per CLAUDE.md's no-migrations-via-Claude-Code rule — this block
+-- documents what was applied, it wasn't executed by Claude Code.
+-- General-purpose sub-tracking for checklist_items: entry_configs holds the mandatory target + type,
+-- entry_labels holds the loggable things (chips/checkboxes/unit), and
+-- recurring_entries is the append-only log. Auto-completion is computed in
+-- application code (src/lib/recurringEntries.ts) and mirrored into the
+-- existing checklist_completions table — no schema coupling between them.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.entry_configs (
+  id uuid primary key default gen_random_uuid(),
+  checklist_item_id uuid not null references checklist_items(id) on delete cascade,
+  user_id uuid not null references auth.users(id),
+  type text not null check (type in ('counter', 'checklist', 'numeric')),
+  target integer not null,
+  created_at timestamptz default now(),
+  unique(checklist_item_id)
+);
+
+create table if not exists public.entry_labels (
+  id uuid primary key default gen_random_uuid(),
+  entry_config_id uuid not null references entry_configs(id) on delete cascade,
+  name text not null,
+  default_value numeric,
+  unit text,
+  sort_order integer not null default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.recurring_entries (
+  id uuid primary key default gen_random_uuid(),
+  checklist_item_id uuid not null references checklist_items(id) on delete cascade,
+  entry_label_id uuid references entry_labels(id) on delete set null,
+  user_id uuid not null references auth.users(id),
+  value numeric,
+  note text,
+  logged_at timestamptz not null default now(),
+  created_at timestamptz default now()
+);
+
+alter table public.entry_configs enable row level security;
+alter table public.entry_labels enable row level security;
+alter table public.recurring_entries enable row level security;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'entry_configs' and policyname = 'owner_access') then
+    create policy owner_access on entry_configs
+      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'entry_labels' and policyname = 'owner_access') then
+    create policy owner_access on entry_labels
+      for all using (
+        entry_config_id in (select id from entry_configs where user_id = auth.uid())
+      ) with check (
+        entry_config_id in (select id from entry_configs where user_id = auth.uid())
+      );
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'recurring_entries' and policyname = 'owner_access') then
+    create policy owner_access on recurring_entries
+      for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+  end if;
+end $$;
