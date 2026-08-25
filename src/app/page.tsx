@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CalendarTab } from '@/components/CalendarTab';
+import { RecurringDetailPanel } from '@/components/RecurringDetailPanel';
+import { RecurringItemRow } from '@/components/RecurringItemRow';
 import {
   listFlaggedActions,
   listUpcomingActions,
@@ -13,6 +15,9 @@ import {
 } from '@/lib/actions';
 import { listFlaggedTasks, listUpcomingTasks, setTaskDone, setTaskFlaggedToday, type Task } from '@/lib/tasks';
 import { listUpcomingProjects, type Project } from '@/lib/projects';
+import { getIncompleteDailyItems, getStreak, setCompletedToday, type ChecklistItemToday } from '@/lib/checklist';
+import { getEntryConfigsForItems, type EntryConfigWithLabels } from '@/lib/entryConfig';
+import { getEntryCount, periodRangeForFrequency } from '@/lib/recurringEntries';
 
 function groupByProject(actions: FlaggedAction[]): { projectId: string; projectName: string; items: FlaggedAction[] }[] {
   const groups = new Map<string, { projectId: string; projectName: string; items: FlaggedAction[] }>();
@@ -66,6 +71,20 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [dailyItems, setDailyItems] = useState<ChecklistItemToday[]>([]);
+  const [dailyLoading, setDailyLoading] = useState(true);
+  const [dailyEntryConfigs, setDailyEntryConfigs] = useState<Record<string, EntryConfigWithLabels>>({});
+  const [dailyEntryCounts, setDailyEntryCounts] = useState<Record<string, number>>({});
+  const [dailyStreaks, setDailyStreaks] = useState<Record<string, string>>({});
+  // Holds the item object itself, not just an id — getIncompleteDailyItems()
+  // drops an item from `dailyItems` the moment it's completed (unlike
+  // RecurringItems.tsx's list, which shows all due items regardless of
+  // completion), so looking the id back up in `dailyItems` after a reload
+  // triggered by logging the completing entry could momentarily resolve to
+  // undefined. Keeping the snapshot instead is safe since the panel only
+  // reads item.id/frequency/title, none of which change from logging.
+  const [dailyDetailItem, setDailyDetailItem] = useState<ChecklistItemToday | null>(null);
+
   useEffect(() => {
     Promise.all([
       listFlaggedTasks(),
@@ -84,6 +103,74 @@ export default function TodayPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function reloadDaily() {
+    return getIncompleteDailyItems()
+      .then(setDailyItems)
+      .catch((e) => setError((e as Error).message));
+  }
+
+  useEffect(() => {
+    reloadDaily().finally(() => setDailyLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tracking configs/counts + streak text for the incomplete daily items —
+  // same batch pattern as RecurringItems.tsx's list view (DECISIONS.md D-023).
+  useEffect(() => {
+    if (dailyItems.length === 0) {
+      setDailyEntryConfigs({});
+      setDailyEntryCounts({});
+      setDailyStreaks({});
+      return;
+    }
+    let cancelled = false;
+    getEntryConfigsForItems(dailyItems.map((i) => i.id))
+      .then(async (configs) => {
+        if (cancelled) return;
+        setDailyEntryConfigs(configs);
+        const counts: Record<string, number> = {};
+        await Promise.all(
+          Object.values(configs).map(async (config) => {
+            const { start, end } = periodRangeForFrequency('daily');
+            try {
+              counts[config.checklist_item_id] = await getEntryCount(config.checklist_item_id, start, end);
+            } catch {
+              counts[config.checklist_item_id] = 0;
+            }
+          }),
+        );
+        if (!cancelled) setDailyEntryCounts(counts);
+      })
+      .catch((e) => setError((e as Error).message));
+
+    Promise.all(
+      dailyItems.map(async (item): Promise<[string, string]> => {
+        try {
+          const streak = await getStreak(item.id);
+          return [item.id, `${streak} day streak`];
+        } catch {
+          return [item.id, ''];
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) setDailyStreaks(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dailyItems]);
+
+  async function handleCompleteDaily(item: ChecklistItemToday) {
+    setDailyItems((prev) => prev.filter((i) => i.id !== item.id));
+    try {
+      await setCompletedToday(item.id, true);
+    } catch (e) {
+      setDailyItems((prev) => [...prev, item]);
+      setError((e as Error).message);
+    }
+  }
 
   async function handleCompleteTask(task: Task) {
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
@@ -177,6 +264,43 @@ export default function TodayPage() {
                 </>
               )}
 
+              {!dailyLoading && (
+                <section className="today-section">
+                  <h2 className="today-section__title today-section__title--secondary">Daily habits</h2>
+                  {dailyItems.length === 0 ? (
+                    <p className="list-empty">All habits complete</p>
+                  ) : (
+                    <div className="list">
+                      {dailyItems.map((item) => (
+                        <RecurringItemRow
+                          key={item.id}
+                          item={item}
+                          config={dailyEntryConfigs[item.id]}
+                          count={dailyEntryCounts[item.id]}
+                          progressText={dailyStreaks[item.id]}
+                          onClick={
+                            dailyEntryConfigs[item.id] ? () => setDailyDetailItem(item) : undefined
+                          }
+                          actions={
+                            !dailyEntryConfigs[item.id] ? (
+                              <button
+                                type="button"
+                                className="complete-circle"
+                                onClick={() => handleCompleteDaily(item)}
+                                title="Complete"
+                                aria-label={`Complete ${item.title}`}
+                              >
+                                ✓
+                              </button>
+                            ) : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
               {upcoming.length > 0 && (
                 <section className="today-section today-section--upcoming">
                   <h2 className="today-section__title">Upcoming</h2>
@@ -220,6 +344,16 @@ export default function TodayPage() {
                 </section>
               )}
             </div>
+          )}
+
+          {dailyDetailItem && dailyEntryConfigs[dailyDetailItem.id] && (
+            <RecurringDetailPanel
+              item={dailyDetailItem}
+              config={dailyEntryConfigs[dailyDetailItem.id]}
+              streakOrRate={dailyStreaks[dailyDetailItem.id] || ''}
+              onClose={() => setDailyDetailItem(null)}
+              onChanged={reloadDaily}
+            />
           )}
         </>
       )}

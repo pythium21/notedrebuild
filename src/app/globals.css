@@ -11,6 +11,12 @@
   --radius: 10px;
   --nav-height: 60px;
   --sidebar-width: 220px;
+
+  /* Aliases onto the existing two-tier bg/text system (DECISIONS.md D-023) —
+     named to match the spec's vocabulary without introducing a third tier
+     that nothing else in this app uses yet. */
+  --surface-0: var(--bg-elevated);
+  --text-secondary: var(--text-muted);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -437,6 +443,12 @@ a {
   border-radius: var(--radius);
   background: none;
   color: var(--text-muted);
+}
+
+.item-edit-form__buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-basis: 100%;
 }
 
 /* ---- Danger zone (project delete) ---- */
@@ -1565,15 +1577,97 @@ textarea.block--text {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  align-items: center;
+  align-items: flex-start;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tracking-label-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.tracking-label-field {
+  flex: 1 1 140px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .tracking-label-row input {
-  flex: 1 1 100px;
+  width: 100%;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
+}
+
+/* ---- Tracking form UX: descriptions, helper text, inline errors (DECISIONS.md D-023) ---- */
+
+.field-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.field-error {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+.tracking-section-heading {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tracking-preview {
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface-0);
+}
+
+.tracking-preview__label {
+  margin: 0 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.today-section__title--secondary {
+  color: var(--text-secondary);
+}
+
+.complete-circle {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.complete-circle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .recurring-detail {

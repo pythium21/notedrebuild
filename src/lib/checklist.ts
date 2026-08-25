@@ -86,6 +86,18 @@ export async function listRecurringForToday(): Promise<ChecklistItemToday[]> {
     .filter((item) => isDueOn(item, today));
 }
 
+// Today page's "Daily habits" section (DECISIONS.md D-023) — daily items
+// still incomplete for today. Built on top of listRecurringForToday() rather
+// than a fresh three-way join: completedToday already reflects tracked
+// items correctly, since D-022's recalculateAndSync() mirrors hitting a
+// tracking target into checklist_completions the same way a manual toggle
+// would, so a plain "daily and not completedToday" filter is both correct
+// and avoids a second, divergent copy of that logic.
+export async function getIncompleteDailyItems(): Promise<ChecklistItemToday[]> {
+  const items = await listRecurringForToday();
+  return items.filter((item) => item.frequency === 'daily' && !item.completedToday);
+}
+
 // Daily items only — walk backward from yesterday (today doesn't count until
 // completed) counting consecutive completed due-dates until the first miss
 // or the item's creation date, whichever comes first.

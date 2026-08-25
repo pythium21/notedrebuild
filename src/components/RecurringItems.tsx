@@ -16,12 +16,17 @@ import {
 } from '@/lib/checklist';
 import {
   createEntryConfig,
+  deleteEntryConfig,
   getEntryConfigsForItems,
+  updateEntryConfig,
   type EntryConfigWithLabels,
   type EntryType,
 } from '@/lib/entryConfig';
+import { addLabel, removeLabel, updateLabel } from '@/lib/entryLabels';
 import { getEntryCount, periodRangeForFrequency } from '@/lib/recurringEntries';
 import { RecurringDetailPanel } from '@/components/RecurringDetailPanel';
+import { RecurringItemRow } from '@/components/RecurringItemRow';
+import { TrackingConfigFields, isTrackingValid, type TrackingLabelDraft } from '@/components/TrackingConfigFields';
 
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 1, label: 'Mon' },
@@ -97,12 +102,20 @@ export function RecurringItems() {
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [trackingType, setTrackingType] = useState<EntryType>('counter');
   const [trackingTarget, setTrackingTarget] = useState('');
-  const [trackingLabels, setTrackingLabels] = useState<
-    { name: string; defaultValue: string; unit: string }[]
-  >([{ name: '', defaultValue: '', unit: '' }]);
+  const [trackingLabels, setTrackingLabels] = useState<TrackingLabelDraft[]>([
+    { name: '', defaultValue: '', unit: '' },
+  ]);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [editTrackingEnabled, setEditTrackingEnabled] = useState(false);
+  const [editTrackingType, setEditTrackingType] = useState<EntryType>('counter');
+  const [editTrackingTarget, setEditTrackingTarget] = useState('');
+  const [editTrackingLabels, setEditTrackingLabels] = useState<TrackingLabelDraft[]>([
+    { name: '', defaultValue: '', unit: '' },
+  ]);
+  const [editAttemptedSubmit, setEditAttemptedSubmit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -178,11 +191,7 @@ export function RecurringItems() {
 
   const dayOfMonthNum = Number(newDayOfMonth);
   const trackingTargetNum = Number(trackingTarget);
-  const trackingValid =
-    !trackingEnabled ||
-    (trackingTarget.trim().length > 0 &&
-      trackingTargetNum >= 1 &&
-      trackingLabels.some((l) => l.name.trim().length > 0));
+  const trackingValid = !trackingEnabled || isTrackingValid(trackingTarget, trackingLabels);
   const canSubmit =
     newTitle.trim().length > 0 &&
     newFrequency !== null &&
@@ -200,6 +209,7 @@ export function RecurringItems() {
     setTrackingType('counter');
     setTrackingTarget('');
     setTrackingLabels([{ name: '', defaultValue: '', unit: '' }]);
+    setAttemptedSubmit(false);
   }
 
   function toggleNewDayOfWeek(value: number) {
@@ -208,24 +218,9 @@ export function RecurringItems() {
     );
   }
 
-  function addTrackingLabel() {
-    setTrackingLabels((prev) => [...prev, { name: '', defaultValue: '', unit: '' }]);
-  }
-
-  function removeTrackingLabel(index: number) {
-    setTrackingLabels((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function updateTrackingLabel(
-    index: number,
-    field: 'name' | 'defaultValue' | 'unit',
-    value: string,
-  ) {
-    setTrackingLabels((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
-  }
-
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
+    setAttemptedSubmit(true);
     if (!canSubmit || isAdding) return;
     setError(null);
     setIsAdding(true);
@@ -278,18 +273,97 @@ export function RecurringItems() {
     }
   }
 
+  // Edit offers "Add tracking" for an item that isn't tracked yet, or shows
+  // the current config (type/target/labels) pre-filled for one that already
+  // is — retroactive tracking config editing (DECISIONS.md D-023).
   function handleEditStart(item: ChecklistItemToday) {
     setEditingId(item.id);
     setEditTitle(item.title);
+    setEditAttemptedSubmit(false);
+    const config = entryConfigs[item.id];
+    if (config) {
+      setEditTrackingEnabled(true);
+      setEditTrackingType(config.type);
+      setEditTrackingTarget(String(config.target));
+      setEditTrackingLabels(
+        config.entry_labels.length > 0
+          ? config.entry_labels.map((l) => ({
+              id: l.id,
+              name: l.name,
+              defaultValue: l.default_value != null ? String(l.default_value) : '',
+              unit: l.unit || '',
+            }))
+          : [{ name: '', defaultValue: '', unit: '' }],
+      );
+    } else {
+      setEditTrackingEnabled(false);
+      setEditTrackingType('counter');
+      setEditTrackingTarget('');
+      setEditTrackingLabels([{ name: '', defaultValue: '', unit: '' }]);
+    }
   }
 
   async function handleEditSave(e: FormEvent, item: ChecklistItemToday) {
     e.preventDefault();
-    if (!editTitle.trim() || isSaving) return;
+    setEditAttemptedSubmit(true);
+    const trackingOk = !editTrackingEnabled || isTrackingValid(editTrackingTarget, editTrackingLabels);
+    if (!editTitle.trim() || !trackingOk || isSaving) return;
+
+    const config = entryConfigs[item.id];
+    if (!editTrackingEnabled && config) {
+      if (!window.confirm('Remove tracking from this item? Its logged entries will be deleted.')) {
+        return;
+      }
+    }
+
     setError(null);
     setIsSaving(true);
     try {
       await updateChecklistItemTitle(item.id, editTitle.trim());
+
+      if (editTrackingEnabled) {
+        const targetNum = Number(editTrackingTarget);
+        const cleanLabels = editTrackingLabels.filter((l) => l.name.trim().length > 0);
+        if (config) {
+          if (config.type !== editTrackingType || config.target !== targetNum) {
+            await updateEntryConfig(config.id, { type: editTrackingType, target: targetNum });
+          }
+          const survivingIds = new Set(cleanLabels.filter((l) => l.id).map((l) => l.id));
+          await Promise.all(
+            config.entry_labels
+              .filter((l) => !survivingIds.has(l.id))
+              .map((l) => removeLabel(l.id)),
+          );
+          await Promise.all(
+            cleanLabels.map((l, index) => {
+              const defaultValue = l.defaultValue.trim() ? Number(l.defaultValue) : undefined;
+              const unit = l.unit.trim() || undefined;
+              return l.id
+                ? updateLabel(l.id, {
+                    name: l.name.trim(),
+                    default_value: defaultValue ?? null,
+                    unit: unit ?? null,
+                    sort_order: index,
+                  })
+                : addLabel(config.id, l.name.trim(), defaultValue, unit, index);
+            }),
+          );
+        } else {
+          await createEntryConfig(
+            item.id,
+            editTrackingType,
+            targetNum,
+            cleanLabels.map((l) => ({
+              name: l.name.trim(),
+              default_value: l.defaultValue.trim() ? Number(l.defaultValue) : undefined,
+              unit: l.unit.trim() || undefined,
+            })),
+          );
+        }
+      } else if (config) {
+        await deleteEntryConfig(config.id);
+      }
+
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, title: editTitle.trim() } : i)),
       );
@@ -425,64 +499,16 @@ export function RecurringItems() {
         </label>
 
         {trackingEnabled && (
-          <div className="tracking-config">
-            <div className="frequency-chips" role="group" aria-label="Tracking type">
-              {(['counter', 'checklist', 'numeric'] as EntryType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`chip chip--sm${trackingType === t ? ' is-selected' : ''}`}
-                  onClick={() => setTrackingType(t)}
-                >
-                  {t[0].toUpperCase() + t.slice(1)}
-                </button>
-              ))}
-            </div>
-            <input
-              type="number"
-              min={1}
-              className="month-day-input"
-              placeholder="Target"
-              value={trackingTarget}
-              onChange={(e) => setTrackingTarget(e.target.value)}
-            />
-            <div className="tracking-labels">
-              {trackingLabels.map((label, index) => (
-                <div key={index} className="tracking-label-row">
-                  <input
-                    type="text"
-                    placeholder="Label name"
-                    value={label.name}
-                    onChange={(e) => updateTrackingLabel(index, 'name', e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Default value"
-                    value={label.defaultValue}
-                    onChange={(e) => updateTrackingLabel(index, 'defaultValue', e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Unit"
-                    value={label.unit}
-                    onChange={(e) => updateTrackingLabel(index, 'unit', e.target.value)}
-                  />
-                  {trackingLabels.length > 1 && (
-                    <button
-                      type="button"
-                      className="item__action item__action--danger"
-                      onClick={() => removeTrackingLabel(index)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button type="button" className="item__action" onClick={addTrackingLabel}>
-                + Add label
-              </button>
-            </div>
-          </div>
+          <TrackingConfigFields
+            frequency={newFrequency ?? 'daily'}
+            type={trackingType}
+            onTypeChange={setTrackingType}
+            target={trackingTarget}
+            onTargetChange={setTrackingTarget}
+            labels={trackingLabels}
+            onLabelsChange={setTrackingLabels}
+            showErrors={attemptedSubmit}
+          />
         )}
 
         <button type="submit" className="add-form__submit" disabled={!canSubmit || isAdding}>
@@ -510,88 +536,87 @@ export function RecurringItems() {
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                 />
-                <button type="submit" className="item-edit-form__save" disabled={isSaving}>
-                  {isSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  className="item-edit-form__cancel"
-                  onClick={() => setEditingId(null)}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </button>
+
+                <label className="day-detail-form__toggle">
+                  <input
+                    type="checkbox"
+                    checked={editTrackingEnabled}
+                    onChange={(e) => setEditTrackingEnabled(e.target.checked)}
+                  />
+                  Add tracking
+                </label>
+
+                {editTrackingEnabled && (
+                  <TrackingConfigFields
+                    frequency={item.frequency}
+                    type={editTrackingType}
+                    onTypeChange={setEditTrackingType}
+                    target={editTrackingTarget}
+                    onTargetChange={setEditTrackingTarget}
+                    labels={editTrackingLabels}
+                    onLabelsChange={setEditTrackingLabels}
+                    showErrors={editAttemptedSubmit}
+                  />
+                )}
+
+                <div className="item-edit-form__buttons">
+                  <button type="submit" className="item-edit-form__save" disabled={isSaving}>
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    className="item-edit-form__cancel"
+                    onClick={() => setEditingId(null)}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             ) : (
               <div key={item.id}>
-                <div
-                  className={`item item--task${item.completedToday ? ' is-done' : ''}${expandedId === item.id ? ' is-expanded' : ''}`}
+                <RecurringItemRow
+                  item={item}
+                  config={entryConfigs[item.id]}
+                  count={entryCounts[item.id]}
+                  progressText={progress[item.id]}
+                  expanded={expandedId === item.id}
                   onClick={() =>
                     entryConfigs[item.id] ? setDetailId(item.id) : handleToggleExpand(item.id)
                   }
-                >
-                  <div className="item__main">
-                    <span className="item__text">
-                      <span className="item__name">
-                        {item.title}
-                        {entryConfigs[item.id] && (
-                          <span className="item__count">
-                            {' '}
-                            {entryCounts[item.id] ?? 0}/{entryConfigs[item.id].target}
-                          </span>
-                        )}
-                      </span>
-                      {progress[item.id] && (
-                        <span className="item__progress">{progress[item.id]}</span>
-                      )}
-                      {entryConfigs[item.id] && (
-                        <div className="progress-bar progress-bar--thin">
-                          <div
-                            className="progress-bar__fill"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.round(
-                                  ((entryCounts[item.id] ?? 0) / entryConfigs[item.id].target) * 100,
-                                ),
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      )}
-                    </span>
-                  </div>
-                  <div className="item__actions" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="item__action"
-                      onClick={() => handleMove(item, -1)}
-                      disabled={index === 0}
-                      title="Move up"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="item__action"
-                      onClick={() => handleMove(item, 1)}
-                      disabled={index === items.length - 1}
-                      title="Move down"
-                    >
-                      ↓
-                    </button>
-                    {entryConfigs[item.id] && (
+                  actions={
+                    <>
                       <button
                         type="button"
                         className="item__action"
-                        onClick={() => handleToggleExpand(item.id)}
-                        title="Edit, delete, archive"
+                        onClick={() => handleMove(item, -1)}
+                        disabled={index === 0}
+                        title="Move up"
                       >
-                        ⋯
+                        ↑
                       </button>
-                    )}
-                  </div>
-                </div>
+                      <button
+                        type="button"
+                        className="item__action"
+                        onClick={() => handleMove(item, 1)}
+                        disabled={index === items.length - 1}
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                      {entryConfigs[item.id] && (
+                        <button
+                          type="button"
+                          className="item__action"
+                          onClick={() => handleToggleExpand(item.id)}
+                          title="Edit, delete, archive"
+                        >
+                          ⋯
+                        </button>
+                      )}
+                    </>
+                  }
+                />
                 <div className={`item-accordion${expandedId === item.id ? ' is-open' : ''}`}>
                   <div className="item-accordion__body">
                     <div className="item-accordion__row">
