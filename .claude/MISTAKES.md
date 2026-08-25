@@ -63,3 +63,9 @@ Confirmed post-mortems with a known root cause. Undiagnosed bugs live in BACKLOG
 **Root cause**: `/share-target` (`src/app/share-target/page.tsx`) called `createSave()` from `src/lib/saves.ts`, which relies on `supabase.auth.getUser()` finding a live browser session — the same session `AuthGate` gates the rest of the app behind. This was never a documented exception (checked DECISIONS.md — nothing scoped it), and it contradicted D-001's own ruling that any server-side-privileged Supabase access be a route-handler-only `service_role` client. An Android share-sheet navigation isn't guaranteed to carry a persisted, live session in that browsing context, making this an unreliable dependency for a single-user app's most auth-fragile entry point.
 
 **Fix**: See DECISIONS.md D-009. `/share-target` now POSTs to a new route handler (`src/app/api/share-target/route.ts`) that builds a `service_role` client inline and stamps `user_id` from a fixed `NOTED_USER_ID` env var, bypassing session lookup entirely.
+
+## Removing an attached save skipped the D-010 confirm() convention
+
+**Root cause**: `handleRemoveProjectSave()` in `src/app/projects/[id]/ProjectDetailClient.tsx` (added with D-012's saves-attachment work) deleted the `project_saves` row immediately on click. Every other delete/archive/unlink action added before and since (task delete/archive, save delete, project delete, recurring-item delete/archive, page delete, calendar event delete) followed D-010's native-`confirm()` convention; this one handler was missed when it was written and nothing since had exercised the gap. Surfaced 2026-08-25 by a full codebase audit (see AUDIT.md, Section 2).
+
+**Fix**: Added `if (!window.confirm('Remove this save from the project?')) return;` as the first line of the handler, matching the pattern used everywhere else. Commit `6446464`.
