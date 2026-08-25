@@ -241,6 +241,7 @@ export function ProjectDetailClient({ projectId }: { projectId: string }) {
   }
 
   async function handleRemoveProjectSave(id: string, actionId: string | null) {
+    if (!window.confirm('Remove this save from the project?')) return;
     setError(null);
     try {
       await removeProjectSave(id);
