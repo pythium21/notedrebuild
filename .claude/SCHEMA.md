@@ -24,7 +24,7 @@ Confirmed live 2026-08-05 (DECISIONS.md D-011): `status`/`priority`/`description
 
 Confirmed live 2026-08-05 (DECISIONS.md D-012): `outcome` and `page_id` above, applied manually to the live Supabase project (not via Claude Code — see CLAUDE.md's no-migrations rule). See supabase/schema.sql for the documented statements.
 
-Collision resolved (2026-08-05): the original `projects.status` (`Planning`/`In progress`/`Done`, not null, defaulted) and D-011's new `status` (`active`/`on_hold`/`done`/`archived`) couldn't coexist as two same-named columns — resolved by migrating the existing column in place rather than adding a differently-named one. Legacy values collapsed: `Planning`→`active`, `In progress`→`active`, `Done`→`done`. Consequence: the existing Projects list UI's status `<select>` (`src/app/projects/page.tsx`, `STATUSES` array + `ProjectStatus` type in `src/lib/projects.ts`) still reads the old 3-value enum as of this doc update and needs updating to the new 4-value one — tracked in BACKLOG.md.
+Collision resolved (2026-08-05): the original `projects.status` (`Planning`/`In progress`/`Done`, not null, defaulted) and D-011's new `status` (`active`/`on_hold`/`done`/`archived`) couldn't coexist as two same-named columns — resolved by migrating the existing column in place rather than adding a differently-named one. Legacy values collapsed: `Planning`→`active`, `In progress`→`active`, `Done`→`done`.
 
 tasks
 Column	Type	Notes
