@@ -12,11 +12,12 @@
   --nav-height: 60px;
   --sidebar-width: 220px;
 
-  /* Aliases onto the existing two-tier bg/text system (DECISIONS.md D-023) —
-     named to match the spec's vocabulary without introducing a third tier
-     that nothing else in this app uses yet. */
+  /* Alias onto the existing two-tier bg/text system (DECISIONS.md D-023) —
+     named to match that spec's vocabulary without introducing a third tier
+     that nothing else in this app uses. --text-secondary (D-023's other
+     alias) was removed by D-024 — its one consumer, the Today page's
+     Daily-habits heading, no longer exists after the box-grid redesign. */
   --surface-0: var(--bg-elevated);
-  --text-secondary: var(--text-muted);
 }
 
 @media (prefers-color-scheme: dark) {
