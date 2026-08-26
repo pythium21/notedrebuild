@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { localToday } from './checklist';
 
 export interface Task {
   id: string;
@@ -70,6 +71,42 @@ export async function listTasksInRange(startDate: string, endDate: string): Prom
     .select('*')
     .eq('archived', false)
     .not('date', 'is', null)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
+// Today page's Overdue section (DECISIONS.md D-024) — tasks with a past due
+// date that are neither done nor archived. Uses checklist.ts's localToday()
+// rather than toISOString().slice(0,10) (what listUpcomingTasks() above
+// uses) since that flips to tomorrow's date in the evening for timezones
+// ahead of UTC — the same edge case localToday()'s own doc comment covers.
+export async function getOverdueTasks(): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('done', false)
+    .eq('archived', false)
+    .not('date', 'is', null)
+    .lt('date', localToday())
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
+// Inclusive [startDate, endDate] on tasks.date, excluding done/archived —
+// feeds the Today page's Today/Upcoming sections (DECISIONS.md D-024).
+// Distinct from listTasksInRange() above, which the Calendar tab uses and
+// deliberately does NOT filter by done (a completed task still shows as due
+// on its date there).
+export async function getTasksForDateRange(startDate: string, endDate: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('done', false)
+    .eq('archived', false)
     .gte('date', startDate)
     .lte('date', endDate)
     .order('date', { ascending: true });

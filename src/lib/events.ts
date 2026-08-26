@@ -41,6 +41,23 @@ export async function listEventsInRange(
   return data as CalendarEvent[];
 }
 
+// Inclusive [startDate, endDate], date-only — feeds the Today page's
+// Today/Upcoming sections (DECISIONS.md D-024), which reason about events by
+// local calendar day rather than the live ISO-instant range
+// listEventsInRange() (Calendar tab) takes.
+export async function getEventsForDateRange(startDate: string, endDate: string): Promise<CalendarEvent[]> {
+  const startISO = new Date(`${startDate}T00:00:00`).toISOString();
+  const endISO = new Date(`${endDate}T23:59:59.999`).toISOString();
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .gte('start_time', startISO)
+    .lte('start_time', endISO)
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data as CalendarEvent[];
+}
+
 export async function createEvent(input: EventInput): Promise<CalendarEvent> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) throw new Error('Not signed in');
