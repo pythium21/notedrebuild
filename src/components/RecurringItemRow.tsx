@@ -4,12 +4,13 @@ import type { ReactNode } from 'react';
 import type { ChecklistItemToday } from '@/lib/checklist';
 import type { EntryConfigWithLabels } from '@/lib/entryConfig';
 
-// The collapsed recurring-item row — shared between the Recurring tab
-// (RecurringItems.tsx, full move/edit/delete/archive actions + accordion)
-// and the Today page's "Daily habits" section (DECISIONS.md D-023, simpler
-// complete-circle action, no accordion). Only the row's own display + click
-// target is shared; each caller owns its own action controls and any panel
-// that opens below/beside it.
+// The collapsed recurring-item row, used by the Recurring tab
+// (RecurringItems.tsx, full move/edit/delete/archive actions + accordion).
+// The Today page's "Daily habits" section used this list-row form under
+// D-023; D-024 replaced it with a 4-column box grid (HabitBox in
+// src/app/page.tsx) and no longer imports this component. Only the row's
+// own display + click target is shared; each caller owns its own action
+// controls and any panel that opens below/beside it.
 export function RecurringItemRow({
   item,
   config,

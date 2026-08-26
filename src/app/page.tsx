@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { CalendarTab } from '@/components/CalendarTab';
+import { BreadcrumbMenu } from '@/components/BreadcrumbMenu';
 import { RecurringDetailPanel } from '@/components/RecurringDetailPanel';
-import { RecurringItemRow } from '@/components/RecurringItemRow';
 import {
   listFlaggedActions,
   listUpcomingActions,
@@ -13,11 +13,92 @@ import {
   type FlaggedAction,
   type UpcomingAction,
 } from '@/lib/actions';
-import { listFlaggedTasks, listUpcomingTasks, setTaskDone, setTaskFlaggedToday, type Task } from '@/lib/tasks';
+import {
+  getOverdueTasks,
+  getTasksForDateRange,
+  listFlaggedTasks,
+  setTaskDone,
+  setTaskFlaggedToday,
+  type Task,
+} from '@/lib/tasks';
+import { getEventsForDateRange, type CalendarEvent } from '@/lib/events';
 import { listUpcomingProjects, type Project } from '@/lib/projects';
-import { getIncompleteDailyItems, getStreak, setCompletedToday, type ChecklistItemToday } from '@/lib/checklist';
+import { getIncompleteDailyItems, getStreak, localToday, setCompletedToday, type ChecklistItemToday } from '@/lib/checklist';
 import { getEntryConfigsForItems, type EntryConfigWithLabels } from '@/lib/entryConfig';
 import { getEntryCount, periodRangeForFrequency } from '@/lib/recurringEntries';
+
+// ---- Section order (DECISIONS.md D-024) ----
+
+type SectionKey = 'habits' | 'overdue' | 'today' | 'upcoming';
+
+const DEFAULT_SECTION_ORDER: SectionKey[] = ['habits', 'overdue', 'today', 'upcoming'];
+const SECTION_LABELS: Record<SectionKey, string> = {
+  habits: 'Daily habits',
+  overdue: 'Overdue',
+  today: 'Today',
+  upcoming: 'Upcoming',
+};
+const SECTION_ORDER_STORAGE_KEY = 'today-section-order';
+
+function loadStoredSectionOrder(): SectionKey[] {
+  try {
+    const raw = window.localStorage.getItem(SECTION_ORDER_STORAGE_KEY);
+    if (!raw) return DEFAULT_SECTION_ORDER;
+    const parsed = JSON.parse(raw);
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === DEFAULT_SECTION_ORDER.length &&
+      DEFAULT_SECTION_ORDER.every((key) => parsed.includes(key))
+    ) {
+      return parsed as SectionKey[];
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_SECTION_ORDER;
+}
+
+// ---- Local-date helpers (avoid UTC-offset drift, matching checklist.ts's
+// localToday()/parseLocalDate() convention) ----
+
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysStr(dateStr: string, delta: number): string {
+  const d = parseLocalDate(dateStr);
+  d.setDate(d.getDate() + delta);
+  return formatLocalDateStr(d);
+}
+
+function daysOverdue(dateStr: string): number {
+  const due = parseLocalDate(dateStr).getTime();
+  const today = parseLocalDate(localToday()).getTime();
+  return Math.round((today - due) / (24 * 60 * 60 * 1000));
+}
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Manual formatting (not toLocaleDateString) so the "Thu 28 Aug" shape from
+// the spec is exact regardless of the viewer's locale ordering/punctuation.
+function formatDayHeading(dateStr: string): string {
+  const d = parseLocalDate(dateStr);
+  return `${WEEKDAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+}
+
+function formatEventTime(event: CalendarEvent): string {
+  if (event.all_day) return 'All day';
+  return new Date(event.start_time).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
 
 function groupByProject(actions: FlaggedAction[]): { projectId: string; projectName: string; items: FlaggedAction[] }[] {
   const groups = new Map<string, { projectId: string; projectName: string; items: FlaggedAction[] }>();
@@ -36,40 +117,327 @@ function groupByProject(actions: FlaggedAction[]): { projectId: string; projectN
   return Array.from(groups.values());
 }
 
-type UpcomingItem =
+// ---- Today section: tasks (date = today OR flagged_today) + events (date = today) ----
+
+type TodayRowItem = { kind: 'event'; event: CalendarEvent } | { kind: 'task'; task: Task };
+
+function buildTodayRows(tasks: Task[], events: CalendarEvent[]): TodayRowItem[] {
+  const sortedEvents = [...events].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const sortedTasks = [...tasks].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return [
+    ...sortedEvents.map((event) => ({ kind: 'event' as const, event })),
+    ...sortedTasks.map((task) => ({ kind: 'task' as const, task })),
+  ];
+}
+
+// ---- Upcoming section: next 7 days, grouped by day ----
+// Tasks/events are strictly bounded to the 7-day window per spec. Actions
+// and projects reuse the existing unbounded listUpcomingActions()/
+// listUpcomingProjects() (DECISIONS.md D-013) so nothing that used to show
+// on Today disappears — anything beyond the 7-day window lands in a
+// trailing "Later" group instead of a dated day header.
+
+type UpcomingRowItem =
+  | { kind: 'event'; date: string; event: CalendarEvent }
   | { kind: 'task'; date: string; task: Task }
   | { kind: 'action'; date: string; action: UpcomingAction }
   | { kind: 'project'; date: string; project: Project };
 
-function buildUpcoming(tasks: Task[], actions: UpcomingAction[], projects: Project[]): UpcomingItem[] {
-  const items: UpcomingItem[] = [
-    ...tasks.filter((t): t is Task & { date: string } => !!t.date).map((task) => ({ kind: 'task' as const, date: task.date, task })),
-    ...actions
-      .filter((a): a is UpcomingAction & { due_date: string } => !!a.due_date)
-      .map((action) => ({ kind: 'action' as const, date: action.due_date, action })),
-    ...projects
-      .filter((p): p is Project & { due_date: string } => !!p.due_date)
-      .map((project) => ({ kind: 'project' as const, date: project.due_date, project })),
-  ];
-  items.sort((a, b) => a.date.localeCompare(b.date));
-  return items;
+function rankKind(kind: UpcomingRowItem['kind']): number {
+  return kind === 'event' ? 0 : kind === 'task' ? 1 : kind === 'action' ? 2 : 3;
 }
 
-function formatUpcomingDate(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+function sortDayItems(items: UpcomingRowItem[]): UpcomingRowItem[] {
+  return [...items].sort((a, b) => {
+    const diff = rankKind(a.kind) - rankKind(b.kind);
+    if (diff !== 0) return diff;
+    if (a.kind === 'event' && b.kind === 'event') return a.event.start_time.localeCompare(b.event.start_time);
+    return 0;
+  });
+}
+
+function buildUpcomingGroups(
+  tasks: Task[],
+  events: CalendarEvent[],
+  actions: UpcomingAction[],
+  projects: Project[],
+  rangeStart: string,
+  rangeEnd: string,
+): { days: { date: string; items: UpcomingRowItem[] }[]; later: UpcomingRowItem[] } {
+  const byDate = new Map<string, UpcomingRowItem[]>();
+  function push(date: string, item: UpcomingRowItem) {
+    const existing = byDate.get(date);
+    if (existing) existing.push(item);
+    else byDate.set(date, [item]);
+  }
+
+  for (const task of tasks) {
+    if (task.date) push(task.date, { kind: 'task', date: task.date, task });
+  }
+  for (const event of events) {
+    const date = formatLocalDateStr(new Date(event.start_time));
+    push(date, { kind: 'event', date, event });
+  }
+
+  const later: UpcomingRowItem[] = [];
+  for (const action of actions) {
+    if (!action.due_date) continue;
+    const item: UpcomingRowItem = { kind: 'action', date: action.due_date, action };
+    if (action.due_date >= rangeStart && action.due_date <= rangeEnd) push(action.due_date, item);
+    else if (action.due_date > rangeEnd) later.push(item);
+  }
+  for (const project of projects) {
+    if (!project.due_date) continue;
+    const item: UpcomingRowItem = { kind: 'project', date: project.due_date, project };
+    if (project.due_date >= rangeStart && project.due_date <= rangeEnd) push(project.due_date, item);
+    else if (project.due_date > rangeEnd) later.push(item);
+  }
+
+  const days = Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, items]) => ({ date, items: sortDayItems(items) }));
+  later.sort((a, b) => a.date.localeCompare(b.date));
+  return { days, later };
+}
+
+function TodayRowView({
+  item,
+  onCompleteTask,
+  isCompleting,
+}: {
+  item: TodayRowItem | UpcomingRowItem;
+  onCompleteTask: (task: Task) => void;
+  isCompleting: (id: string) => boolean;
+}) {
+  if (item.kind === 'event') {
+    return (
+      <div className="today-row">
+        <span className="event-dot" aria-hidden="true">
+          <span className="event-dot__inner" />
+        </span>
+        <span className="today-row__name">{item.event.title}</span>
+        <span className="today-row__time">{formatEventTime(item.event)}</span>
+      </div>
+    );
+  }
+  if (item.kind === 'task') {
+    const busy = isCompleting(item.task.id);
+    return (
+      <button
+        type="button"
+        className="today-row"
+        onClick={() => onCompleteTask(item.task)}
+        disabled={busy}
+        aria-label={`Complete ${item.task.name}`}
+      >
+        <span className="check-box" aria-hidden="true" />
+        <span className="today-row__name">{item.task.name}</span>
+        {item.task.tag && <span className="today-row__meta">{item.task.tag}</span>}
+      </button>
+    );
+  }
+  if (item.kind === 'action') {
+    return (
+      <Link href={`/projects/${item.action.project_id}`} className="today-row">
+        <span className="today-row__name">{item.action.title}</span>
+        <span className="today-row__meta">{item.action.project?.name || 'Project'}</span>
+      </Link>
+    );
+  }
+  return (
+    <Link href={`/projects/${item.project.id}`} className="today-row">
+      <span className="today-row__name">{item.project.name}</span>
+      <span className="today-row__meta">Project</span>
+    </Link>
+  );
+}
+
+function OverdueRowView({
+  task,
+  onComplete,
+  busy,
+}: {
+  task: Task;
+  onComplete: (task: Task) => void;
+  busy: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="today-row today-row--overdue"
+      onClick={() => onComplete(task)}
+      disabled={busy}
+      aria-label={`Complete ${task.name}`}
+    >
+      <span className="check-box check-box--danger" aria-hidden="true" />
+      <span className="today-row__name">{task.name}</span>
+      {task.tag && <span className="today-row__meta">{task.tag}</span>}
+      <span className="today-row__overdue">{daysOverdue(task.date!)}d overdue</span>
+    </button>
+  );
+}
+
+// ---- Daily habits: 4-column box grid with an SVG progress ring (DECISIONS.md D-024) ----
+// checklist_items has no emoji column (SCHEMA.md) and this decision makes no
+// schema changes, so each ring shows the habit's initial letter instead of
+// the spec's literal "habit emoji" — the closest same-size substitute
+// without a migration.
+
+const RING_RADIUS = 16;
+const RING_CIRCUMFERENCE = 100.5; // 2 * PI * 16, rounded — matches the spec's dash-total literally
+
+function HabitBox({
+  item,
+  config,
+  count,
+  onOpenDetail,
+  onComplete,
+  busy,
+}: {
+  item: ChecklistItemToday;
+  config?: EntryConfigWithLabels;
+  count?: number;
+  onOpenDetail: () => void;
+  onComplete: () => void;
+  busy: boolean;
+}) {
+  const target = config ? config.target : 1;
+  const progress = config ? count ?? 0 : item.completedToday ? 1 : 0;
+  const pct = target > 0 ? Math.min(1, progress / target) : 0;
+  const dash = pct * RING_CIRCUMFERENCE;
+  const progressLabel = config ? `${count ?? 0}/${target}` : item.completedToday ? 'Done' : '';
+  const initial = item.title.trim().charAt(0).toUpperCase() || '•';
+
+  return (
+    <button
+      type="button"
+      className={`habit-box${item.completedToday ? ' is-done' : ''}`}
+      onClick={config ? onOpenDetail : onComplete}
+      disabled={!config && busy}
+      aria-label={`${item.title} — ${progressLabel || 'not started'}`}
+    >
+      <svg width="40" height="40" viewBox="0 0 40 40" className="habit-box__ring" aria-hidden="true">
+        <circle cx="20" cy="20" r={RING_RADIUS} className="habit-box__ring-track" />
+        <circle
+          cx="20"
+          cy="20"
+          r={RING_RADIUS}
+          className="habit-box__ring-fill"
+          strokeDasharray={`${dash} ${RING_CIRCUMFERENCE}`}
+          transform="rotate(-90 20 20)"
+        />
+        <text x="20" y="21" textAnchor="middle" dominantBaseline="middle" className="habit-box__glyph">
+          {initial}
+        </text>
+      </svg>
+      <span className="habit-box__name">{item.title}</span>
+      <span className="habit-box__progress">{progressLabel}</span>
+    </button>
+  );
+}
+
+// ---- Arrange overlay (DECISIONS.md D-024) ----
+
+function ArrangePanel({
+  order,
+  onReorder,
+  onClose,
+}: {
+  order: SectionKey[];
+  onReorder: (order: SectionKey[]) => void;
+  onClose: () => void;
+}) {
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= order.length) return;
+    const next = [...order];
+    [next[index], next[target]] = [next[target], next[index]];
+    onReorder(next);
+  }
+
+  return (
+    <BreadcrumbMenu onClose={onClose}>
+      <div className="day-detail">
+        <h3 className="day-detail__heading">Arrange sections</h3>
+        <div className="list">
+          {order.map((key, index) => (
+            <div key={key} className="item">
+              <span className="item__name">{SECTION_LABELS[key]}</span>
+              <div className="item__actions">
+                <button
+                  type="button"
+                  className="item__action"
+                  onClick={() => move(index, -1)}
+                  disabled={index === 0}
+                  aria-label={`Move ${SECTION_LABELS[key]} up`}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className="item__action"
+                  onClick={() => move(index, 1)}
+                  disabled={index === order.length - 1}
+                  aria-label={`Move ${SECTION_LABELS[key]} down`}
+                >
+                  ▼
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="add-form__submit arrange-panel__done" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </BreadcrumbMenu>
+  );
+}
+
+function SectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="section-header">
+      <h2 className="section-header__label">{label}</h2>
+      <span className="section-header__count">{count}</span>
+    </div>
+  );
 }
 
 type TodayTab = 'today' | 'calendar';
 
 export default function TodayPage() {
   const [activeTab, setActiveTab] = useState<TodayTab>('today');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [actions, setActions] = useState<FlaggedAction[]>([]);
-  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
-  const [upcomingActions, setUpcomingActions] = useState<UpcomingAction[]>([]);
-  const [upcomingProjects, setUpcomingProjects] = useState<Project[]>([]);
+
+  const [sectionOrder, setSectionOrder] = useState<SectionKey[]>(DEFAULT_SECTION_ORDER);
+  const [arrangeOpen, setArrangeOpen] = useState(false);
+
+  useEffect(() => {
+    setSectionOrder(loadStoredSectionOrder());
+  }, []);
+
+  function handleReorder(next: SectionKey[]) {
+    setSectionOrder(next);
+    try {
+      window.localStorage.setItem(SECTION_ORDER_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // localStorage unavailable (private mode, etc.) — order just won't persist
+    }
+  }
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
+
+  const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
+
+  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
+  const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
+  const [todayFlaggedActions, setTodayFlaggedActions] = useState<FlaggedAction[]>([]);
+
+  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
+  const [upcomingActions, setUpcomingActions] = useState<UpcomingAction[]>([]);
+  const [upcomingProjects, setUpcomingProjects] = useState<Project[]>([]);
 
   const [dailyItems, setDailyItems] = useState<ChecklistItemToday[]>([]);
   const [dailyLoading, setDailyLoading] = useState(true);
@@ -77,31 +445,47 @@ export default function TodayPage() {
   const [dailyEntryCounts, setDailyEntryCounts] = useState<Record<string, number>>({});
   const [dailyStreaks, setDailyStreaks] = useState<Record<string, string>>({});
   // Holds the item object itself, not just an id — getIncompleteDailyItems()
-  // drops an item from `dailyItems` the moment it's completed (unlike
-  // RecurringItems.tsx's list, which shows all due items regardless of
-  // completion), so looking the id back up in `dailyItems` after a reload
-  // triggered by logging the completing entry could momentarily resolve to
-  // undefined. Keeping the snapshot instead is safe since the panel only
-  // reads item.id/frequency/title, none of which change from logging.
+  // drops an item the instant it's completed, so looking the id back up in
+  // dailyItems after a reload triggered by logging the completing entry
+  // could momentarily resolve to undefined. The panel only reads
+  // item.id/frequency/title, none of which change from logging.
   const [dailyDetailItem, setDailyDetailItem] = useState<ChecklistItemToday | null>(null);
 
-  useEffect(() => {
-    Promise.all([
+  const today = localToday();
+  const tomorrow = addDaysStr(today, 1);
+  const weekEnd = addDaysStr(today, 7);
+
+  function reloadToday() {
+    return Promise.all([
+      getOverdueTasks(),
+      getTasksForDateRange(today, today),
       listFlaggedTasks(),
+      getEventsForDateRange(today, today),
       listFlaggedActions(),
-      listUpcomingTasks(),
+      getTasksForDateRange(tomorrow, weekEnd),
+      getEventsForDateRange(tomorrow, weekEnd),
       listUpcomingActions(),
       listUpcomingProjects(),
     ])
-      .then(([t, a, ut, ua, up]) => {
-        setTasks(t);
-        setActions(a);
-        setUpcomingTasks(ut);
-        setUpcomingActions(ua);
-        setUpcomingProjects(up);
+      .then(([overdue, todayDated, flaggedTasks, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
+        setOverdueTasks(overdue);
+        const todayTaskMap = new Map<string, Task>();
+        for (const t of todayDated) todayTaskMap.set(t.id, t);
+        for (const t of flaggedTasks) todayTaskMap.set(t.id, t);
+        setTodayTasks(Array.from(todayTaskMap.values()));
+        setTodayEvents(todayEvts);
+        setTodayFlaggedActions(flaggedActions);
+        setUpcomingTasks(upTasks);
+        setUpcomingEvents(upEvents);
+        setUpcomingActions(upActions);
+        setUpcomingProjects(upProjects);
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => setError((e as Error).message));
+  }
+
+  useEffect(() => {
+    reloadToday().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function reloadDaily() {
@@ -162,43 +546,208 @@ export default function TodayPage() {
     };
   }, [dailyItems]);
 
-  async function handleCompleteDaily(item: ChecklistItemToday) {
+  function withCompleting(id: string, action: () => Promise<void>, rollback: () => void) {
+    if (completingIds.has(id)) return;
+    setCompletingIds((prev) => new Set(prev).add(id));
+    action()
+      .catch((e) => {
+        rollback();
+        setError((e as Error).message);
+      })
+      .finally(() => {
+        setCompletingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      });
+  }
+
+  function handleCompleteDaily(item: ChecklistItemToday) {
     setDailyItems((prev) => prev.filter((i) => i.id !== item.id));
-    try {
-      await setCompletedToday(item.id, true);
-    } catch (e) {
-      setDailyItems((prev) => [...prev, item]);
-      setError((e as Error).message);
-    }
+    withCompleting(
+      item.id,
+      () => setCompletedToday(item.id, true),
+      () => setDailyItems((prev) => [...prev, item]),
+    );
   }
 
-  async function handleCompleteTask(task: Task) {
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    try {
-      await Promise.all([setTaskDone(task.id, true), setTaskFlaggedToday(task.id, false)]);
-    } catch (e) {
-      setTasks((prev) => [task, ...prev]);
-      setError((e as Error).message);
-    }
+  function handleCompleteTask(task: Task) {
+    setOverdueTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setTodayTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setUpcomingTasks((prev) => prev.filter((t) => t.id !== task.id));
+    withCompleting(
+      task.id,
+      () => Promise.all([setTaskDone(task.id, true), setTaskFlaggedToday(task.id, false)]).then(() => undefined),
+      () => reloadToday(),
+    );
   }
 
-  async function handleCompleteAction(action: FlaggedAction) {
-    setActions((prev) => prev.filter((a) => a.id !== action.id));
-    try {
-      await Promise.all([setActionCompleted(action.id, true), setActionFlaggedToday(action.id, false)]);
-    } catch (e) {
-      setActions((prev) => [action, ...prev]);
-      setError((e as Error).message);
-    }
+  function handleCompleteAction(action: FlaggedAction) {
+    setTodayFlaggedActions((prev) => prev.filter((a) => a.id !== action.id));
+    withCompleting(
+      action.id,
+      () =>
+        Promise.all([setActionCompleted(action.id, true), setActionFlaggedToday(action.id, false)]).then(
+          () => undefined,
+        ),
+      () => setTodayFlaggedActions((prev) => [...prev, action]),
+    );
   }
 
-  const actionGroups = groupByProject(actions);
-  const nothingFlagged = tasks.length === 0 && actions.length === 0;
-  const upcoming = buildUpcoming(upcomingTasks, upcomingActions, upcomingProjects);
+  const todayRows = buildTodayRows(todayTasks, todayEvents);
+  const todayActionGroups = groupByProject(todayFlaggedActions);
+  const { days: upcomingDays, later: upcomingLater } = buildUpcomingGroups(
+    upcomingTasks,
+    upcomingEvents,
+    upcomingActions,
+    upcomingProjects,
+    tomorrow,
+    weekEnd,
+  );
+
+  const todayCount = todayRows.length + todayFlaggedActions.length;
+  const upcomingCount = upcomingDays.reduce((sum, day) => sum + day.items.length, 0) + upcomingLater.length;
+
+  function renderSection(key: SectionKey) {
+    if (key === 'habits') {
+      return (
+        <section key={key} className="today-section">
+          <SectionHeader label={SECTION_LABELS.habits} count={dailyItems.length} />
+          {dailyLoading ? null : dailyItems.length === 0 ? (
+            <p className="list-empty">All habits complete</p>
+          ) : (
+            <div className="habit-grid">
+              {dailyItems.map((item) => (
+                <HabitBox
+                  key={item.id}
+                  item={item}
+                  config={dailyEntryConfigs[item.id]}
+                  count={dailyEntryCounts[item.id]}
+                  busy={completingIds.has(item.id)}
+                  onOpenDetail={() => setDailyDetailItem(item)}
+                  onComplete={() => handleCompleteDaily(item)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    if (key === 'overdue') {
+      if (overdueTasks.length === 0) return null;
+      return (
+        <section key={key} className="today-section">
+          <SectionHeader label={SECTION_LABELS.overdue} count={overdueTasks.length} />
+          <div className="list">
+            {overdueTasks.map((task) => (
+              <OverdueRowView
+                key={task.id}
+                task={task}
+                onComplete={handleCompleteTask}
+                busy={completingIds.has(task.id)}
+              />
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (key === 'today') {
+      if (todayCount === 0) return null;
+      return (
+        <section key={key} className="today-section">
+          <SectionHeader label={SECTION_LABELS.today} count={todayCount} />
+          {todayRows.length > 0 && (
+            <div className="list">
+              {todayRows.map((item) => (
+                <TodayRowView
+                  key={item.kind === 'event' ? `event-${item.event.id}` : `task-${item.task.id}`}
+                  item={item}
+                  onCompleteTask={handleCompleteTask}
+                  isCompleting={(id) => completingIds.has(id)}
+                />
+              ))}
+            </div>
+          )}
+          {todayActionGroups.map((group) => (
+            <div key={group.projectId} className="today-subgroup">
+              <Link href={`/projects/${group.projectId}`} className="today-subgroup__title">
+                {group.projectName}
+              </Link>
+              <div className="list">
+                {group.items.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className="today-row"
+                    onClick={() => handleCompleteAction(action)}
+                    disabled={completingIds.has(action.id)}
+                    aria-label={`Complete ${action.title}`}
+                  >
+                    <span className="check-box" aria-hidden="true" />
+                    <span className="today-row__name">{action.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      );
+    }
+
+    // upcoming
+    if (upcomingCount === 0) return null;
+    return (
+      <section key={key} className="today-section">
+        <SectionHeader label={SECTION_LABELS.upcoming} count={upcomingCount} />
+        {upcomingDays.map((day) => (
+          <div key={day.date} className="day-group">
+            <h3 className="day-group__header">{formatDayHeading(day.date)}</h3>
+            <div className="list">
+              {day.items.map((item, i) => (
+                <TodayRowView
+                  key={i}
+                  item={item}
+                  onCompleteTask={handleCompleteTask}
+                  isCompleting={(id) => completingIds.has(id)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+        {upcomingLater.length > 0 && (
+          <div className="day-group">
+            <h3 className="day-group__header">Later</h3>
+            <div className="list">
+              {upcomingLater.map((item, i) => (
+                <TodayRowView
+                  key={i}
+                  item={item}
+                  onCompleteTask={handleCompleteTask}
+                  isCompleting={(id) => completingIds.has(id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div>
       <h1 className="page-title">Today</h1>
+
+      <div className="today-topbar">
+        <p className="today-topbar__date">{formatDayHeading(today)}</p>
+        {activeTab === 'today' && (
+          <button type="button" className="chip today-topbar__arrange" onClick={() => setArrangeOpen(true)}>
+            ⇅ Arrange
+          </button>
+        )}
+      </div>
 
       <div className="today-tabs" role="group" aria-label="Today view">
         <button
@@ -223,128 +772,7 @@ export default function TodayPage() {
         <>
           {error && <p className="auth-error">{error}</p>}
 
-          {loading ? null : (
-            <div className="today-view">
-              {nothingFlagged ? (
-                <p className="list-empty">
-                  Nothing flagged for today — flag a task from Tasks, or an action from a project, to see it here.
-                </p>
-              ) : (
-                <>
-                  {tasks.length > 0 && (
-                    <section className="today-section">
-                      <h2 className="today-section__title">Tasks</h2>
-                      <div className="list">
-                        {tasks.map((task) => (
-                          <label key={task.id} className="item today-item">
-                            <input type="checkbox" onChange={() => handleCompleteTask(task)} />
-                            <span className="item__name">{task.name}</span>
-                            {task.tag && <span className="item__tag">{task.tag}</span>}
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  {actionGroups.map((group) => (
-                    <section key={group.projectId} className="today-section">
-                      <h2 className="today-section__title">
-                        <Link href={`/projects/${group.projectId}`}>{group.projectName}</Link>
-                      </h2>
-                      <div className="list">
-                        {group.items.map((action) => (
-                          <label key={action.id} className="item today-item">
-                            <input type="checkbox" onChange={() => handleCompleteAction(action)} />
-                            <span className="item__name">{action.title}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                </>
-              )}
-
-              {!dailyLoading && (
-                <section className="today-section">
-                  <h2 className="today-section__title today-section__title--secondary">Daily habits</h2>
-                  {dailyItems.length === 0 ? (
-                    <p className="list-empty">All habits complete</p>
-                  ) : (
-                    <div className="list">
-                      {dailyItems.map((item) => (
-                        <RecurringItemRow
-                          key={item.id}
-                          item={item}
-                          config={dailyEntryConfigs[item.id]}
-                          count={dailyEntryCounts[item.id]}
-                          progressText={dailyStreaks[item.id]}
-                          onClick={
-                            dailyEntryConfigs[item.id] ? () => setDailyDetailItem(item) : undefined
-                          }
-                          actions={
-                            !dailyEntryConfigs[item.id] ? (
-                              <button
-                                type="button"
-                                className="complete-circle"
-                                onClick={() => handleCompleteDaily(item)}
-                                title="Complete"
-                                aria-label={`Complete ${item.title}`}
-                              >
-                                ✓
-                              </button>
-                            ) : undefined
-                          }
-                        />
-                      ))}
-                    </div>
-                  )}
-                </section>
-              )}
-
-              {upcoming.length > 0 && (
-                <section className="today-section today-section--upcoming">
-                  <h2 className="today-section__title">Upcoming</h2>
-                  <div className="list">
-                    {upcoming.map((item) => {
-                      if (item.kind === 'task') {
-                        return (
-                          <div key={`task-${item.task.id}`} className="item today-item">
-                            <span className="item__name">{item.task.name}</span>
-                            <span className="item__tag">Task</span>
-                            <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                          </div>
-                        );
-                      }
-                      if (item.kind === 'action') {
-                        return (
-                          <Link
-                            key={`action-${item.action.id}`}
-                            href={`/projects/${item.action.project_id}`}
-                            className="item today-item"
-                          >
-                            <span className="item__name">{item.action.title}</span>
-                            <span className="item__tag">{item.action.project?.name || 'Project'}</span>
-                            <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                          </Link>
-                        );
-                      }
-                      return (
-                        <Link
-                          key={`project-${item.project.id}`}
-                          href={`/projects/${item.project.id}`}
-                          className="item today-item"
-                        >
-                          <span className="item__name">{item.project.name}</span>
-                          <span className="item__tag">Project</span>
-                          <span className="item__date">{formatUpcomingDate(item.date)}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-            </div>
-          )}
+          {loading ? null : <div className="today-view">{sectionOrder.map(renderSection)}</div>}
 
           {dailyDetailItem && dailyEntryConfigs[dailyDetailItem.id] && (
             <RecurringDetailPanel
@@ -356,6 +784,10 @@ export default function TodayPage() {
             />
           )}
         </>
+      )}
+
+      {arrangeOpen && (
+        <ArrangePanel order={sectionOrder} onReorder={handleReorder} onClose={() => setArrangeOpen(false)} />
       )}
     </div>
   );

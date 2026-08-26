@@ -1646,30 +1646,6 @@ textarea.block--text {
   color: var(--text-muted);
 }
 
-.today-section__title--secondary {
-  color: var(--text-secondary);
-}
-
-.complete-circle {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-
-.complete-circle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .recurring-detail {
   gap: 1rem;
 }
@@ -1902,4 +1878,241 @@ textarea.block--text {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
+}
+
+/* ---- Today page four-section redesign (DECISIONS.md D-024) ---- */
+
+.today-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: -0.5rem 0 0.75rem;
+}
+
+.today-topbar__date {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.today-topbar__arrange {
+  flex-shrink: 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+
+.section-header__label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.section-header__count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  min-width: 1.2rem;
+  text-align: center;
+}
+
+/* Daily habits box grid — always 4 columns per spec, wraps to further rows
+   past 4 items rather than reflowing the column count at narrow widths. */
+.habit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.habit-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font: inherit;
+  color: var(--text);
+  min-width: 0;
+}
+
+.habit-box:disabled {
+  opacity: 0.6;
+}
+
+.habit-box.is-done {
+  opacity: 0.7;
+  border-color: var(--accent);
+}
+
+.habit-box__ring-track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 3;
+}
+
+.habit-box__ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.habit-box__glyph {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.habit-box__name {
+  font-size: 11px;
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.habit-box.is-done .habit-box__name {
+  color: var(--text-muted);
+}
+
+.habit-box__progress {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Overdue / Today / Upcoming rows — a shared full-width row shape, either a
+   plain display div (events) or a button/link (tasks/actions/projects). */
+.today-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+button.today-row:disabled {
+  opacity: 0.5;
+}
+
+.today-row--overdue {
+  background: rgba(255, 59, 48, 0.04);
+  border: 1px solid rgba(255, 59, 48, 0.12);
+}
+
+.today-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.today-row__meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.today-row__time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.today-row__overdue {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+.check-box {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: none;
+}
+
+.check-box--danger {
+  border-color: rgba(255, 59, 48, 0.5);
+}
+
+.event-dot {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.event-dot__inner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Flagged actions grouped by project, nested inside the Today section */
+.today-subgroup {
+  margin-top: 1rem;
+}
+
+.today-subgroup:first-child {
+  margin-top: 0.75rem;
+}
+
+.today-subgroup__title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.today-subgroup__title:hover {
+  text-decoration: underline;
+}
+
+/* Upcoming's per-day groups, plus the trailing unbounded "Later" group */
+.day-group {
+  margin-bottom: 1rem;
+}
+
+.day-group:last-child {
+  margin-bottom: 0;
+}
+
+.day-group__header {
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+  color: var(--text-muted);
+}
+
+.arrange-panel__done {
+  margin-top: 0.5rem;
+  width: 100%;
 }
