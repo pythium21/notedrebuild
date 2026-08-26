@@ -120,6 +120,18 @@ value	numeric, nullable	the logged number (numeric-type entries); null for a pla
 note	text, nullable	unused by the UI as of this build, reserved for a future per-entry note field
 logged_at	timestamptz not null default now()	what "today"/"this week" period membership is computed against (local-day boundaries, same convention as `checklist.ts`'s `localToday()`)
 RLS: one `owner_access` policy `for all using/with check (user_id = auth.uid())`.
+tester_feedback
+New table (DECISIONS.md D-025), adapted from feedback-widget-replication-guide.md. Confirmed live 2026-08-26 — applied manually in the Supabase SQL editor per CLAUDE.md's no-migrations-via-Claude-Code convention (supabase/schema.sql), plus the feedback-screenshots Storage bucket (private). Verified directly against the live project (not just assumed from the SQL file): table + all columns present, RLS blocks an anon select to an empty array and rejects an anon insert (42501), bucket exists with public: false, and an anon storage upload outside a real user folder is rejected. Standard convention columns (id, user_id, created_at) plus:
+Column	Type	Notes
+type	text not null	one of: bug · idea · general
+description	text not null	
+severity	text, nullable	one of: blocker · minor. Only meaningful when type = 'bug'; null otherwise.
+screenshot_path	text, nullable	path into the feedback-screenshots bucket, {user_id}/{timestamp}.{ext}; null when no screenshot was attached
+page_route	text, nullable	pathname captured client-side at submit time
+status	text not null default 'new'	one of: new · reviewed · backlog · done · dismissed — no UI reads/writes this yet beyond the default; included for a future triage view
+admin_notes	text, nullable	unused by any UI yet; same rationale as status
+RLS: insert + select only, scoped to auth.uid() = user_id — deliberately no update/delete policy for the submitting user (DECISIONS.md D-025). Any future triage/update UI must go through a service-role route handler (D-009's pattern), not loosened RLS on this table.
+
 Planned tables (not yet created)
 
 The retired vanilla repo's SCHEMA.md documents the full 13-route schema (goals, habits, expenses, workouts, journal, contacts, content, resources, vault). `pages` was the last one parked there and has now been built (DECISIONS.md D-012, see above) — remaining tables are added here one at a time, when their route is actually built — copy the section from the retired repo's SCHEMA.md at that point, don't pre-create tables.

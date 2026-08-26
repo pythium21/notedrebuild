@@ -2117,3 +2117,89 @@ button.today-row:disabled {
   margin-top: 0.5rem;
   width: 100%;
 }
+
+/* ---- Feedback widget ---- */
+
+.feedback-trigger {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--nav-height) + 1rem);
+  z-index: 55;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 600px) {
+  .feedback-trigger {
+    bottom: 1.5rem;
+  }
+}
+
+.feedback-modal {
+  max-width: 420px;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.feedback-form textarea {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  resize: vertical;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.feedback-hint {
+  margin: -0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.feedback-screenshot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feedback-screenshot__preview {
+  max-width: 100%;
+  max-height: 160px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  object-fit: contain;
+}
+
+.feedback-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--nav-height) + 1rem);
+  z-index: 61;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (min-width: 600px) {
+  .feedback-toast {
+    bottom: 1.5rem;
+  }
+}

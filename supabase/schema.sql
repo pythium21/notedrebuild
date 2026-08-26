@@ -454,3 +454,74 @@ do $$ begin
       for all using (user_id = auth.uid()) with check (user_id = auth.uid());
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Tester feedback widget
+--
+-- Not yet applied — run manually in the Supabase SQL editor per CLAUDE.md's
+-- no-migrations-via-Claude-Code rule, then confirm live in SCHEMA.md/STATUS.md.
+-- Floating in-app feedback capture (bug/idea/general + optional screenshot),
+-- adapted from feedback-widget-replication-guide.md. Deliberately no
+-- update/delete policy for the submitting user — this table is
+-- insert-once/read-own; any future triage UI must go through a service-role
+-- route handler (D-009's pattern), not loosened RLS.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.tester_feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  type text not null check (type in ('bug', 'idea', 'general')),
+  description text not null,
+  severity text check (severity in ('blocker', 'minor')),
+  screenshot_path text,
+  page_route text,
+  status text not null default 'new' check (status in ('new', 'reviewed', 'backlog', 'done', 'dismissed')),
+  admin_notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.tester_feedback enable row level security;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'tester_feedback' and policyname = 'users insert own feedback') then
+    create policy "users insert own feedback" on tester_feedback
+      for insert with check (auth.uid() = user_id);
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'tester_feedback' and policyname = 'users select own feedback') then
+    create policy "users select own feedback" on tester_feedback
+      for select using (auth.uid() = user_id);
+  end if;
+end $$;
+
+-- Storage bucket + policies for feedback screenshots — create the bucket via
+-- the Supabase Dashboard (Storage → New bucket → "feedback-screenshots",
+-- private) or the insert below, then run the policies. Verify the bucket
+-- actually exists before shipping (`select * from storage.buckets`) — don't
+-- assume a doc's claim that it does (see the pitfall this note is quoting,
+-- MISTAKES.md-style, from the replication guide's own §4).
+insert into storage.buckets (id, name, public)
+values ('feedback-screenshots', 'feedback-screenshots', false)
+on conflict (id) do nothing;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'objects' and schemaname = 'storage' and policyname = 'users upload own screenshots') then
+    create policy "users upload own screenshots" on storage.objects
+      for insert with check (
+        bucket_id = 'feedback-screenshots'
+        and (storage.foldername(name))[1] = auth.uid()::text
+      );
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select from pg_policies where tablename = 'objects' and schemaname = 'storage' and policyname = 'users read own screenshots') then
+    create policy "users read own screenshots" on storage.objects
+      for select using (
+        bucket_id = 'feedback-screenshots'
+        and (storage.foldername(name))[1] = auth.uid()::text
+      );
+  end if;
+end $$;
