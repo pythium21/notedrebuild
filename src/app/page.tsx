@@ -26,6 +26,7 @@ import { listUpcomingProjects, type Project } from '@/lib/projects';
 import { getIncompleteDailyItems, getStreak, localToday, setCompletedToday, type ChecklistItemToday } from '@/lib/checklist';
 import { getEntryConfigsForItems, type EntryConfigWithLabels } from '@/lib/entryConfig';
 import { getEntryCount, periodRangeForFrequency } from '@/lib/recurringEntries';
+import { toDisplayError, withAuthRetry } from '@/lib/errors';
 
 // ---- Section order (DECISIONS.md D-024) ----
 
@@ -456,17 +457,19 @@ export default function TodayPage() {
   const weekEnd = addDaysStr(today, 7);
 
   function reloadToday() {
-    return Promise.all([
-      getOverdueTasks(),
-      getTasksForDateRange(today, today),
-      listFlaggedTasks(),
-      getEventsForDateRange(today, today),
-      listFlaggedActions(),
-      getTasksForDateRange(tomorrow, weekEnd),
-      getEventsForDateRange(tomorrow, weekEnd),
-      listUpcomingActions(),
-      listUpcomingProjects(),
-    ])
+    return withAuthRetry(() =>
+      Promise.all([
+        getOverdueTasks(),
+        getTasksForDateRange(today, today),
+        listFlaggedTasks(),
+        getEventsForDateRange(today, today),
+        listFlaggedActions(),
+        getTasksForDateRange(tomorrow, weekEnd),
+        getEventsForDateRange(tomorrow, weekEnd),
+        listUpcomingActions(),
+        listUpcomingProjects(),
+      ]),
+    )
       .then(([overdue, todayDated, flaggedTasks, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
         setOverdueTasks(overdue);
         const todayTaskMap = new Map<string, Task>();
@@ -480,7 +483,7 @@ export default function TodayPage() {
         setUpcomingActions(upActions);
         setUpcomingProjects(upProjects);
       })
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(toDisplayError(e)));
   }
 
   useEffect(() => {
@@ -489,9 +492,9 @@ export default function TodayPage() {
   }, []);
 
   function reloadDaily() {
-    return getIncompleteDailyItems()
+    return withAuthRetry(() => getIncompleteDailyItems())
       .then(setDailyItems)
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(toDisplayError(e)));
   }
 
   useEffect(() => {
@@ -526,7 +529,7 @@ export default function TodayPage() {
         );
         if (!cancelled) setDailyEntryCounts(counts);
       })
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(toDisplayError(e)));
 
     Promise.all(
       dailyItems.map(async (item): Promise<[string, string]> => {
@@ -552,7 +555,7 @@ export default function TodayPage() {
     action()
       .catch((e) => {
         rollback();
-        setError((e as Error).message);
+        setError(toDisplayError(e));
       })
       .finally(() => {
         setCompletingIds((prev) => {

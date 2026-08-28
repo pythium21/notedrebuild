@@ -6,6 +6,24 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-026 · Recoverable auth errors self-heal once before surfacing; raw messages get mapped (2026-08-28)
+
+**Context:** The first tester feedback row (D-025) was a bug report reading only "What's jwl" — the screenshot showed a red banner on the Today page saying **"JWT issued at future"**. That string is GoTrue/PostgREST rejecting an access token whose `iat` claim is ahead of Supabase's server clock, i.e. the tester's phone clock running fast. `src/app/page.tsx` was piping `(e as Error).message` from every failed data load straight into its inline `.auth-error` banner (four call sites), so an auth-layer failure showed up as unexplained jargon with no next step.
+
+**Decision:**
+- **New `src/lib/errors.ts`** — not a per-page helper, so other routes can adopt the same two functions as their `catch` handlers get touched:
+  - `isRecoverableAuthError(e)` — regex-matches the GoTrue/PostgREST strings a token refresh can plausibly fix (`jwt`, `issued at future`, `bad_jwt`, `token expired`/`used before issued`, `invalid claim`).
+  - `withAuthRetry(fn)` — runs `fn`; on a recoverable auth error only, calls `supabase.auth.refreshSession()` once and runs `fn` again. A second failure (or any non-auth error) bubbles to the caller's own `catch`. **Reads only** — a retried write could double-apply if the first attempt reached the server, so mutation handlers are deliberately not wrapped.
+  - `toDisplayError(e)` — returns a plain-language line ("Your session went out of sync — check your device's date & time…") for a recoverable auth error, and the error's own `.message` unchanged for everything else.
+- **`src/app/page.tsx`**: `reloadToday()` and `reloadDaily()` (the mount-time loads that actually failed for the tester) wrap their `Promise.all` / fetch in `withAuthRetry`. All four `setError(...)` sites — including the two that aren't wrapped (`dailyItems` tracking effect, `withCompleting`'s rollback path) — now format through `toDisplayError` instead of raw `.message`.
+- **Not done:** no global fetch/Supabase interceptor, no retry on writes, no automatic reload/sign-out on the second failure — the friendly banner plus a manual reload is the fallback when a refresh can't fix it (a genuinely wrong device clock isn't the app's to correct).
+
+**Rationale:** Clock skew is environmental and mostly transient — the device re-syncs, and the next token mints cleanly — so a silent refresh-and-retry clears the common case with no user-visible error at all. When it can't, mapping the message to name the actual cause (device clock / stale session) is strictly better than showing `"JWT issued at future"` to someone who then files a confused bug report. Putting both helpers in `src/lib/` rather than inline in `page.tsx` follows the same one-owning-place principle CLAUDE.md applies to docs — the next route that needs session-aware error handling imports these instead of re-deriving them.
+
+**Status:** Active. No schema change. `tsc --noEmit` and `npm run build` clean. Not yet verified against a real skewed-clock device — the original report can't be reproduced on demand (BACKLOG.md Active).
+
+---
+
 ## D-025 · Tester feedback widget, adapted from a cross-repo replication guide (2026-08-26)
 
 **Context:** Asked to build a floating in-app feedback capture widget (bug/idea/general, optional screenshot) using `feedback-widget-replication-guide.md` — a portable spec written against a sibling repo (Protergy/Neartrition) for replication into other Next.js + Supabase apps. The guide's own §0 says to read this repo's own docs first and adapt, not copy verbatim.
