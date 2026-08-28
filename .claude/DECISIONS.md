@@ -6,6 +6,22 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-027 · `/api/link-preview` stays unauthenticated — accepted risk, recorded like D-009 (2026-08-28)
+
+**Context:** AUDIT.md (2026-08-25) Section 7 / Top-5 #5 flagged that `/api/link-preview` is a bare unauthenticated endpoint whose whole job is to make the server fetch a caller-supplied URL. `/api/share-target`'s equivalent exposure is a deliberate, documented tradeoff (D-009); `/api/link-preview` had no ruling either way, so the audit asked for one.
+
+**Decision:** Leave it unauthenticated — no shared-secret check, no rate limiter. The existing defenses in `src/lib/linkPreview.ts` are the whole mitigation and are considered sufficient:
+- non-http(s) protocols rejected; private / loopback / link-local hostnames rejected before any fetch (SSRF guard);
+- 8s timeout (`FETCH_TIMEOUT_MS`), 2MB response cap (`MAX_BYTES`);
+- failures return `{ title: null }` — no fetched body, headers, redirect chain, or error detail is ever echoed to the caller;
+- the route only ever extracts a page `<title>`; it writes nothing to the database.
+
+**Rationale:** The residual risk is someone who discovers the Railway URL using it as a rate-limitless "fetch a public URL through my server" oracle — burning capped outbound bandwidth/CPU per request, or probing which external sites are reachable. For a single-user personal app with nothing sensitive on the server's network, that is low-consequence and the same class of accepted exposure as D-009. A shared-secret check is feasible (the route is only ever called from this app's own client) and should be revisited if the endpoint is abused in practice or the app stops being single-user — but building it now is effort spent against a risk that doesn't materially threaten this deployment.
+
+**Status:** Active. No code change — this entry is the ruling the audit asked for. AUDIT.md Top-5 #5 and Section 7 updated to point here.
+
+---
+
 ## D-026 · Recoverable auth errors self-heal once before surfacing; raw messages get mapped (2026-08-28)
 
 **Context:** The first tester feedback row (D-025) was a bug report reading only "What's jwl" — the screenshot showed a red banner on the Today page saying **"JWT issued at future"**. That string is GoTrue/PostgREST rejecting an access token whose `iat` claim is ahead of Supabase's server clock, i.e. the tester's phone clock running fast. `src/app/page.tsx` was piping `(e as Error).message` from every failed data load straight into its inline `.auth-error` banner (four call sites), so an auth-layer failure showed up as unexplained jargon with no next step.

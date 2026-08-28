@@ -91,20 +91,13 @@ async function getRedditToken(): Promise<string | null> {
       },
       body: 'grant_type=client_credentials',
     });
-    if (!res.ok) {
-      console.log('[linkPreview] reddit token fetch not ok:', res.status);
-      return null;
-    }
+    if (!res.ok) return null;
     const data = await res.json();
-    if (typeof data?.access_token !== 'string') {
-      console.log('[linkPreview] reddit token response missing access_token');
-      return null;
-    }
+    if (typeof data?.access_token !== 'string') return null;
     const ttlSeconds = typeof data.expires_in === 'number' ? data.expires_in : 3600;
     redditToken = { value: data.access_token, expiresAt: Date.now() + (ttlSeconds - 60) * 1000 };
     return redditToken.value;
-  } catch (err) {
-    console.log('[linkPreview] reddit token fetch failed:', err);
+  } catch {
     return null;
   } finally {
     clearTimeout(timeout);
@@ -137,14 +130,11 @@ async function resolveRedditCanonical(url: URL, token: string | null): Promise<U
     if (res.status >= 300 && res.status < 400 && location) {
       const target = new URL(location, url);
       if (isRedditHost(target.hostname) && !isPrivateHost(target.hostname)) {
-        console.log('[linkPreview] reddit canonical:', url.toString(), '->', target.toString());
         return target;
       }
     }
-    console.log('[linkPreview] reddit short-link did not redirect:', url.toString(), res.status);
     return url;
-  } catch (err) {
-    console.log('[linkPreview] reddit redirect resolve failed:', url.toString(), err);
+  } catch {
     return url;
   } finally {
     clearTimeout(timeout);
@@ -187,22 +177,14 @@ async function fetchRedditTitle(url: URL): Promise<string | null> {
     });
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok || !contentType.includes('json')) {
-      console.log(
-        '[linkPreview] reddit .json unusable:',
-        jsonUrl.toString(),
-        res.status,
-        contentType,
-      );
       return redditSlugTitle(canonical);
     }
 
     const data = await res.json();
     const rawTitle = data?.[0]?.data?.children?.[0]?.data?.title;
     const title = typeof rawTitle === 'string' ? usableTitle(rawTitle) : null;
-    console.log('[linkPreview] reddit .json title:', jsonUrl.toString(), title);
     return title || redditSlugTitle(canonical);
-  } catch (err) {
-    console.log('[linkPreview] reddit .json fetch failed:', jsonUrl.toString(), err);
+  } catch {
     return redditSlugTitle(canonical);
   } finally {
     clearTimeout(timeout);

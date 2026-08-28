@@ -11,8 +11,23 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Supabase redirects an expired / already-used / invalid magic link back here
+  // with the reason in the URL hash (`#error=...&error_description=...`). Read it
+  // during the first render, before the Supabase client's own URL handling can
+  // strip the hash, so the user gets told why they landed on the sign-in screen
+  // instead of a silent bounce (AUDIT.md 2026-08-25, Section 9).
+  const [error, setError] = useState<string | null>(() => {
+    if (typeof window === 'undefined' || !window.location.hash) return null;
+    return new URLSearchParams(window.location.hash.slice(1)).get('error_description');
+  });
   const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('error')) {
+      // Drop the error fragment so it doesn't survive a reload or a later sign-in.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
