@@ -6,6 +6,22 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-028 · Today's "Today" section also includes undated, unflagged tasks (2026-08-30)
+
+**Context:** Second tester-feedback row (2026-08-29, BACKLOG.md Active #16): "Can today also show tasks? Especially if they're not dated, it is shown until marked complete." Investigation confirmed the gap in code, not a misconfiguration (unlike the counter-tracking report from the same feedback session, which turned out to be a plain untracked recurring item — no DECISIONS.md entry needed there): `src/app/page.tsx`'s `reloadToday()` builds the Today section's task list as the union of `date = today` (`getTasksForDateRange(today, today)`) and `flagged_today = true` (`listFlaggedTasks()`) — a task with no date and no flag has zero presence anywhere on the Today page. It only ever shows on the plain `/tasks` list, which applies no date filter at all and so shows it indefinitely until done — correct, expected behavior for that list, just invisible from the page whose whole premise (D-011) is "everything relevant in one place."
+
+**Decision:**
+- Extend the existing task union in `reloadToday()` (`src/app/page.tsx`) with a third member: tasks where `date is null`, not done, not archived. A new `getUndatedTasks()` in `src/lib/tasks.ts` mirrors the shape of the existing `getOverdueTasks()` (`.is('date', null)`, `.eq('done', false)`, `.eq('archived', false)`), fed into the same `todayTaskMap` id-keyed dedup that already merges `todayDated`/`flaggedTasks` — no new merge mechanism, just a third source into one that already exists.
+- Undated tasks render in the "Today" section exactly like a dated-today task, through the existing `buildTodayRows()` — no visual distinction, no new section, no new Arrange-panel entry. They persist on Today until completed, archived, or given a date, matching `/tasks`'s existing persistence semantics rather than inventing a new lifecycle or a "dismiss from Today" action.
+- **Rejected: a dedicated new section**, toggleable in the Arrange overlay alongside Daily habits/Overdue/Today/Upcoming. The tester's own wording asks for undated tasks to show on Today, not for a fifth, separately-named place to look — and a distinct "backlog"/"no date" section is real UI weight (a new `SectionKey`, a new empty-state, a new localStorage-order entry) for a request this app currently has only one data point on. Revisit as its own section only if folding into Today feels noisy in actual daily use with more than a couple of undated tasks — same "ship the minimal version, escalate only if real usage complains" logic D-002/D-023 already apply elsewhere in this file.
+- **Rejected: no code change, rely on `flagged_today` alone.** The flag already exists for "pull this onto Today regardless of its date," but the tester asked for undated tasks to show by default, not for a manual per-task flag-tap — those are two different asks (flagged = "I decided this matters today"; undated = "this task simply has nowhere else to live"). Leaving it flag-only would ship nothing in response to the actual report.
+
+**Rationale:** Reuses the exact union-and-dedupe mechanism the Today section already applies to flagged tasks, rather than introducing new state, a new section type, or a stored "shown on Today" flag — the latter would be one more boolean that can drift from the tasks it's meant to describe, against this schema's existing bias toward deriving rather than storing that kind of fact (e.g. `checklist_items`' misses are derived, never stored, D-018).
+
+**Status:** Active. No schema change, `tsc`/`build` clean — `getUndatedTasks()` (`src/lib/tasks.ts`) added to `reloadToday()`'s existing task union (`src/app/page.tsx`). Not yet verified on device — see BACKLOG.md Active #16.
+
+---
+
 ## D-027 · `/api/link-preview` stays unauthenticated — accepted risk, recorded like D-009 (2026-08-28)
 
 **Context:** AUDIT.md (2026-08-25) Section 7 / Top-5 #5 flagged that `/api/link-preview` is a bare unauthenticated endpoint whose whole job is to make the server fetch a caller-supplied URL. `/api/share-target`'s equivalent exposure is a deliberate, documented tradeoff (D-009); `/api/link-preview` had no ruling either way, so the audit asked for one.

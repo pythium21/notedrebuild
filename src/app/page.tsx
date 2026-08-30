@@ -16,6 +16,7 @@ import {
 import {
   getOverdueTasks,
   getTasksForDateRange,
+  getUndatedTasks,
   listFlaggedTasks,
   setTaskDone,
   setTaskFlaggedToday,
@@ -462,6 +463,7 @@ export default function TodayPage() {
         getOverdueTasks(),
         getTasksForDateRange(today, today),
         listFlaggedTasks(),
+        getUndatedTasks(),
         getEventsForDateRange(today, today),
         listFlaggedActions(),
         getTasksForDateRange(tomorrow, weekEnd),
@@ -470,11 +472,12 @@ export default function TodayPage() {
         listUpcomingProjects(),
       ]),
     )
-      .then(([overdue, todayDated, flaggedTasks, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
+      .then(([overdue, todayDated, flaggedTasks, undatedTasks, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
         setOverdueTasks(overdue);
         const todayTaskMap = new Map<string, Task>();
         for (const t of todayDated) todayTaskMap.set(t.id, t);
         for (const t of flaggedTasks) todayTaskMap.set(t.id, t);
+        for (const t of undatedTasks) todayTaskMap.set(t.id, t);
         setTodayTasks(Array.from(todayTaskMap.values()));
         setTodayEvents(todayEvts);
         setTodayFlaggedActions(flaggedActions);

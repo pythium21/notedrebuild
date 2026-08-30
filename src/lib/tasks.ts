@@ -96,6 +96,21 @@ export async function getOverdueTasks(): Promise<Task[]> {
   return data as Task[];
 }
 
+// Today page's Today section also folds in undated tasks (DECISIONS.md
+// D-028) — a task with no date and no flag otherwise has no presence
+// anywhere on Today. Mirrors getOverdueTasks()'s shape.
+export async function getUndatedTasks(): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('done', false)
+    .eq('archived', false)
+    .is('date', null)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
 // Inclusive [startDate, endDate] on tasks.date, excluding done/archived —
 // feeds the Today page's Today/Upcoming sections (DECISIONS.md D-024).
 // Distinct from listTasksInRange() above, which the Calendar tab uses and
