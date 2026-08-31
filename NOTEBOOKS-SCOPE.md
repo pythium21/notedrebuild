@@ -4,8 +4,23 @@ Scoping notes for a **Notebooks** feature on top of the existing Pages/Notes sys
 OneNote-style notebook container with parent/child page nesting and the ability to link to
 other pages within (and across) a notebook.
 
-Status: **scoping only, nothing built.** No DECISIONS.md entry yet — this document is the
-pre-decision analysis. Written 2026-08-28.
+Status: **architecture decided, nothing built.** Ruled on in DECISIONS.md D-030
+(2026-08-31) — this document is the pre-decision analysis D-030 was based on; treat it as
+supporting detail, not the source of truth, if the two ever disagree (D-030 wins per
+CLAUDE.md's conflict rules). Written 2026-08-28, revised 2026-08-31.
+
+### Scope assumptions
+
+- **One user at launch.** This is a private, single-user deployment; signup, invitations,
+  sharing, teams, roles, and other multi-user product flows are out of scope.
+- **Still authenticated and owner-scoped.** Single-user does not mean publicly accessible:
+  all notebook and page reads/writes require an authenticated session, and database RLS
+  plus application checks must restrict records to their `user_id` owner.
+- **Keep a multi-user-compatible data model.** Retain `user_id` ownership on notebooks and
+  pages and avoid hard-coded global-owner assumptions. This adds little complexity now and
+  leaves a clean path to support multiple isolated users later.
+- **Existing notes may be discarded.** This feature does not need to migrate or preserve
+  current `pages` data. Development data can be reset and the new schema can start clean.
 
 ---
 
@@ -66,7 +81,7 @@ Treat any `parent_id IS NULL` page as a notebook, or add `pages.kind ('notebook'
 ```
 notebooks
   id          uuid pk default gen_random_uuid()
-  user_id     uuid not null            -- standard convention, 4 owner-scoped RLS policies
+  user_id     uuid not null            -- authenticated owner; 4 owner-scoped RLS policies
   title       text not null default 'Untitled'
   emoji       text, nullable           -- or `color text` for a cover tint, or both
   sort_order  int not null default 0   -- manual notebook order (self-healing by index, like checklist_items)
@@ -84,13 +99,15 @@ pages   (add one column)
   notebook switcher / grid; matches the app's "one `src/lib` module per table" instinct;
   closest to what "notebooks like OneNote" actually implies.
 - **Cons:** bigger change — every `pages` query, the `PageEditor` `allPages` prop contract,
-  the routes, and a one-time migration of existing pages into a default notebook.
+  and the routes need updating. Existing page data can be dropped, so no data backfill or
+  compatibility migration is required.
 
-**Recommendation: Option B**, NOT NULL `notebook_id`, with a migration that creates a
-"My Notes" notebook per user and stamps it on all existing pages (root pages become
-top-level in that notebook; nesting preserved). Applied manually in the Supabase SQL editor
-per CLAUDE.md, SCHEMA.md updated in the same commit. Because the column is NOT NULL, the
-migration must run as: add nullable → backfill → set NOT NULL, in one script.
+**Recommendation: Option B**, with NOT NULL `notebook_id` and `user_id` ownership retained
+on both notebooks and pages. Reset the existing development data and apply a clean schema
+change; do not build an existing-note migration or compatibility path. Create the launch
+user's first notebook through setup/onboarding or a small idempotent bootstrap flow rather
+than embedding a permanent singleton notebook in application logic. Apply the schema
+manually in the Supabase SQL editor per CLAUDE.md and update SCHEMA.md in the same commit.
 
 ## 4. Links to pages within a notebook
 
@@ -117,10 +134,88 @@ different project.
 - Simpler than sub-page creation: it's a `commitBlocks` + `scheduleSave`, no cross-row
   write, so the D-012 flush-before-write guard doesn't apply.
 
-### 4b. Inline `[[wikilinks]]` — out of scope for a first pass
+### 4b. Inline `[[wikilinks]]` — a separate project, deferred
 
-The editor explicitly has no rich text ("each block is a single plain-text field", D-012
-assumptions in STATUS.md). Inline links need rich text within a block. Defer.
+The editor explicitly has no rich text — "each block is a single plain-text field" (D-012
+assumptions in STATUS.md). Every block renders as a native `<textarea>` (text) or
+`<input type="text">` (heading/checklist/bullet) with `value={block.text}`. A native input
+can only hold a flat string; it cannot render a clickable, styled token mid-text. So inline
+links are not a small addition — they change what the editor *is*.
+
+**Rendering approach — pick one, all costly:**
+
+1. **`contentEditable` surface.** Mixed inline content (text nodes + link elements) for
+   free, but you inherit contentEditable's whole problem set: Range/Selection APIs instead
+   of `selectionStart`, browser-specific DOM mutations on every keystroke, paste
+   sanitisation, caret placement around inline atoms, IME composition events, mobile
+   keyboard quirks. In practice this means adopting an editor library (TipTap/ProseMirror,
+   Lexical, Slate) — a dependency the app has deliberately avoided ("No UI library",
+   everything hand-rolled). Reversing that for this surface needs its own DECISIONS.md
+   entry.
+2. **Invisible textarea + a highlighted "mirror" div** drawn behind it (the syntax-
+   highlight-a-textarea hack). No new dependency, but fragile: the mirror must match
+   textarea metrics (font, padding, wrap, line-height) exactly or the caret drifts; the
+   link tokens aren't really clickable (the textarea is on top) so you need click-through
+   handling; breaks under mobile zoom.
+3. **Marker-in-text, parsed at render.** Store `text` as a string containing a token like
+   `[[title|UUID]]` or `⟦page:UUID⟧`; render *read* mode parsed into text + `<Link>` spans,
+   but *edit* mode stays a plain textarea showing the raw marker. Least invasive — roughly
+   an afternoon — but the UX is markdown-source editing: you see `[[Roadmap|a1b2…]]` while
+   typing, not a chip. Not "like OneNote".
+
+**Data model.** `Block.text?: string` no longer suffices for (1)/(2). You move to something
+like `richText?: InlineNode[]` (`[{type:'text', value:'See '}, {type:'page_link',
+pageId:'…'}, {type:'text', value:' for details'}]`). Then every reader of `block.text` —
+rendering, `handleBlockTextChange`, the `/` slash detection (`value.startsWith('/')`), the
+Backspace-empty check (`!block.text`), the textarea autoresize effect, focus restoration —
+has to handle both shapes, or you migrate every existing block (a content migration over
+every row's `content` jsonb).
+
+**Keyboard handling rewrite.** Every branch of `handleBlockKeyDown` assumes one native
+element with `.value` / `.selectionStart` / `.selectionEnd`:
+- Enter ("split here, new block") becomes splitting an `InlineNode[]` at a caret offset
+  that can fall between nodes.
+- Shift+Enter soft break is currently free from `<textarea>`; you'd re-implement it.
+- Backspace-at-start ("is the block empty", "is caret at 0") becomes Range checks; and
+  Backspace just before a link token should delete the token as an atom, not merge into it.
+- Arrow keys past a link atom — contentEditable places the caret inside inline elements
+  inconsistently across browsers.
+
+**`[[` autocomplete popup.** Detect `[[`, anchor a popup at the caret's pixel coords
+(Range `getClientRects()` or a measurement span), filter the page list as the query is
+typed, replace `[[query` with a token on select, close on Escape / click-away. This popup
+has the **same "hidden behind the mobile keyboard" bug already open as BACKLOG.md Active
+#3** for the existing block menu — so it ships with an unsolved problem unless #3 is fixed
+first.
+
+**Sync-on-rename.** Store `pageId`, not the title string, in the token; resolve the
+current title from `allPages` at render (same as `page_link` blocks today). Good — renames
+propagate — but it means the stored form is a marker, which rules out the "just store
+markdown" simplification if you also want live titles.
+
+**Also:** paste handling (linkify pasted `[[…]]` or `/pages/<id>` URLs; strip HTML when
+pasting into contentEditable); undo (native textarea undo is free and is the app's only
+undo today — contentEditable/custom models lose it unless you build it); autoresize with
+wrapped rich lines.
+
+**Knock-on.** Contained to the Notes editor (nothing else touches `pages`). But a rich-text
+editor is the kind of thing every other plain-`<textarea>` surface (task notes, project
+description) then wants — scope-creep risk.
+
+**Estimate.** With an editor library: ~2–4 days for a competent integration including the
+page-link node, the autocomplete, the block-model migration, and mobile testing — plus a
+new dependency, bundle cost, and a decision entry reversing "no UI library" here.
+Hand-rolled (approach 2 or 3): similar-or-more time and worse robustness. Either way it is
+a distinct project, not a phase of this one.
+
+**Cheaper middle grounds if inline linking is wanted sooner:**
+- Approach 3 above (visible marker while editing, parsed in a read/preview toggle) — an
+  afternoon, deliberately plain UX.
+- An `@`-at-start-of-an-empty-block trigger that converts the block to a `page_link` —
+  effectively 4a with a keyboard shortcut instead of the slash menu, keeps the plain-text
+  model entirely.
+- Accept block-level links only (what 4a delivers). Notion shipped only block-level page
+  links for a long time.
 
 ### 4c. Backlinks / "Linked from" — phase 3
 
@@ -139,8 +234,9 @@ too.
 ## 5. Decision points to settle before building
 
 1. **Notebook as its own table (B) or reframed root page (A)?** → recommend **B**.
-2. **`pages.notebook_id` NOT NULL + default-notebook migration, or nullable (orphan pages
-   allowed)?** → recommend **NOT NULL**, migrate existing pages to "My Notes".
+2. **`pages.notebook_id` NOT NULL or nullable (orphan pages allowed)?** → **NOT NULL**.
+   Existing notes may be discarded, so reset the data and start with a clean schema rather
+   than implementing a backfill migration.
 3. **Delete-a-notebook behaviour?** Options:
    - DB `on delete restrict` + an app flow that makes you empty the notebook first —
      safe but tedious for a whole notebook of pages.
@@ -164,7 +260,24 @@ too.
 9. **Nav.** Nav has 5 items (Today, Tasks, Projects, Saves, Notes). No new item needed —
    the "Notes" entry points at the notebook list. Possibly rename "Notes" → "Notebooks".
 
-## 6. Main implementation subtlety
+## 6. Security and future scale boundary
+
+The launch product has one user, but its security boundary is still per authenticated
+owner:
+
+- Require authentication before rendering or mutating notebook/page data; unauthenticated
+  requests must not fall back to a shared or default user.
+- Enable owner-scoped RLS on both tables for select, insert, update, and delete. Inserts
+  must bind ownership to `auth.uid()`; callers must not be able to assign another owner.
+- Verify that a page's `notebook_id` refers to a notebook owned by the same user. Enforce
+  this in the database where practical, not only in the UI.
+- Keep privileged/service-role credentials server-only and use them only for narrowly
+  scoped operations that cannot be expressed safely through the authenticated client.
+- Do not build invitations, sharing, organizations, roles, or account switching now.
+  Future multi-user support should initially mean isolated private accounts; collaboration
+  and shared notebooks would require a separate authorization model and scope decision.
+
+## 7. Main implementation subtlety
 
 `PageEditor` reads the whole `allPages` forest for the breadcrumb, the sibling switcher,
 **and `page_link` title resolution**. If the tree becomes notebook-scoped but a `page_link`
@@ -184,17 +297,17 @@ Also:
 - A `page_link` to a deleted page currently renders "Untitled" (the `find` returns
   undefined). Acceptable; could be improved to "(deleted page)". Minor.
 
-## 7. Phasing
+## 8. Phasing
 
 ### Phase 1 — "Link to existing page"
 No schema change, no migration. Add the block-menu option, wire `Picker` over the page
 list, insert a `page_link` block. Independently shippable and immediately useful.
 
 ### Phase 2 — Notebooks entity
-- `notebooks` table + `pages.notebook_id` (NOT NULL) + RLS + the add-nullable→backfill→
-  set-NOT-NULL migration creating a "My Notes" notebook per user.
+- `notebooks` table + `pages.notebook_id` (NOT NULL) + owner-scoped RLS. Reset existing
+  note data and apply the clean schema; no content backfill or preservation migration.
 - `src/lib/notebooks.ts` (CRUD, one-module-per-table convention).
-- `PagesShell` notebook scoping (global fetch + notebook filter, per §6); notebook
+- `PagesShell` notebook scoping (global fetch + notebook filter, per §7); notebook
   list/grid view (reuse the Projects card-grid pattern); notebook switcher (reuse
   `BreadcrumbMenu`); "New notebook" and "New page in notebook".
 - Notebook delete story (resolve §5 point 3).
@@ -212,13 +325,14 @@ list, insert a `page_link` block. Independently shippable and immediately useful
 - Notebook color / cover.
 - `pages.sort_order` + manual page reorder (currently title-sorted only).
 
-## 8. Risks / notes
+## 9. Risks / notes
 
 - Two new/changed DB objects (`notebooks` table, `pages.notebook_id`) — both applied
   manually in the Supabase SQL editor, SCHEMA.md updated in the same commit, no
   migrations-via-Claude-Code (CLAUDE.md).
-- The default-notebook migration touches every existing `pages` row. Low risk (single
-  user, small table) but it's a one-shot backfill — get it right in one script.
+- Resetting `pages` is intentionally destructive and acceptable for this scope. Confirm
+  the target environment before applying the schema so a future environment with data is
+  not mistaken for the disposable single-user development database.
 - If the notebook-delete story lands as a route handler, that's new server-side surface
   (3rd handler); it must build the `service_role` client inline and never be imported into
   client code (D-001 / D-009).
