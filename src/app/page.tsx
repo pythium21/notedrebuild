@@ -15,6 +15,7 @@ import {
 } from '@/lib/actions';
 import {
   getOverdueTasks,
+  getTasksAfterDate,
   getTasksForDateRange,
   getUndatedTasks,
   listFlaggedTasks,
@@ -166,6 +167,7 @@ function buildUpcomingGroups(
   projects: Project[],
   rangeStart: string,
   rangeEnd: string,
+  laterTasks: Task[] = [],
 ): { days: { date: string; items: UpcomingRowItem[] }[]; later: UpcomingRowItem[] } {
   const byDate = new Map<string, UpcomingRowItem[]>();
   function push(date: string, item: UpcomingRowItem) {
@@ -182,7 +184,11 @@ function buildUpcomingGroups(
     push(date, { kind: 'event', date, event });
   }
 
-  const later: UpcomingRowItem[] = [];
+  // Beyond the 7-day window (already guaranteed by getTasksAfterDate(weekEnd))
+  // — same trailing-group treatment as actions/projects below.
+  const later: UpcomingRowItem[] = laterTasks
+    .filter((t) => t.date)
+    .map((task) => ({ kind: 'task', date: task.date as string, task }));
   for (const action of actions) {
     if (!action.due_date) continue;
     const item: UpcomingRowItem = { kind: 'action', date: action.due_date, action };
@@ -442,6 +448,7 @@ export default function TodayPage() {
   const [upcomingEvents, setUpcomingEvents] = useState<CalendarEvent[]>([]);
   const [upcomingActions, setUpcomingActions] = useState<UpcomingAction[]>([]);
   const [upcomingProjects, setUpcomingProjects] = useState<Project[]>([]);
+  const [laterTasks, setLaterTasks] = useState<Task[]>([]);
 
   const [dailyItems, setDailyItems] = useState<ChecklistItemToday[]>([]);
   const [dailyLoading, setDailyLoading] = useState(true);
@@ -472,22 +479,38 @@ export default function TodayPage() {
         getEventsForDateRange(tomorrow, weekEnd),
         listUpcomingActions(),
         listUpcomingProjects(),
+        getTasksAfterDate(weekEnd),
       ]),
     )
-      .then(([overdue, todayDated, flaggedTasks, undated, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
-        setOverdueTasks(overdue);
-        setUndatedTasks(undated);
-        const todayTaskMap = new Map<string, Task>();
-        for (const t of todayDated) todayTaskMap.set(t.id, t);
-        for (const t of flaggedTasks) todayTaskMap.set(t.id, t);
-        setTodayTasks(Array.from(todayTaskMap.values()));
-        setTodayEvents(todayEvts);
-        setTodayFlaggedActions(flaggedActions);
-        setUpcomingTasks(upTasks);
-        setUpcomingEvents(upEvents);
-        setUpcomingActions(upActions);
-        setUpcomingProjects(upProjects);
-      })
+      .then(
+        ([
+          overdue,
+          todayDated,
+          flaggedTasks,
+          undated,
+          todayEvts,
+          flaggedActions,
+          upTasks,
+          upEvents,
+          upActions,
+          upProjects,
+          upLaterTasks,
+        ]) => {
+          setOverdueTasks(overdue);
+          setUndatedTasks(undated);
+          const todayTaskMap = new Map<string, Task>();
+          for (const t of todayDated) todayTaskMap.set(t.id, t);
+          for (const t of flaggedTasks) todayTaskMap.set(t.id, t);
+          setTodayTasks(Array.from(todayTaskMap.values()));
+          setTodayEvents(todayEvts);
+          setTodayFlaggedActions(flaggedActions);
+          setUpcomingTasks(upTasks);
+          setUpcomingEvents(upEvents);
+          setUpcomingActions(upActions);
+          setUpcomingProjects(upProjects);
+          setLaterTasks(upLaterTasks);
+        },
+      )
       .catch((e) => setError(toDisplayError(e)));
   }
 
@@ -585,6 +608,7 @@ export default function TodayPage() {
     setUndatedTasks((prev) => prev.filter((t) => t.id !== task.id));
     setTodayTasks((prev) => prev.filter((t) => t.id !== task.id));
     setUpcomingTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setLaterTasks((prev) => prev.filter((t) => t.id !== task.id));
     withCompleting(
       task.id,
       () => Promise.all([setTaskDone(task.id, true), setTaskFlaggedToday(task.id, false)]).then(() => undefined),
@@ -613,6 +637,7 @@ export default function TodayPage() {
     upcomingProjects,
     tomorrow,
     weekEnd,
+    laterTasks,
   );
 
   const todayCount = todayRows.length + todayFlaggedActions.length;

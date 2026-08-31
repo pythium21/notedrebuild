@@ -129,6 +129,25 @@ export async function getTasksForDateRange(startDate: string, endDate: string): 
   return data as Task[];
 }
 
+// Feeds the Upcoming section's trailing "Later" group with tasks dated
+// beyond the 7-day window (MISTAKES.md, tester feedback 2026-08-31) —
+// getTasksForDateRange() above has no catch-all the way
+// listUpcomingActions()/listUpcomingProjects() already do for rows beyond
+// their own window, so a task due more than 7 days out previously had zero
+// presence anywhere on the Today page.
+export async function getTasksAfterDate(dateStr: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('done', false)
+    .eq('archived', false)
+    .not('date', 'is', null)
+    .gt('date', dateStr)
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data as Task[];
+}
+
 export async function createTask(input: {
   name: string;
   tag?: string | null;
