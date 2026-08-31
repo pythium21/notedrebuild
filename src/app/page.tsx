@@ -29,15 +29,16 @@ import { getEntryConfigsForItems, type EntryConfigWithLabels } from '@/lib/entry
 import { getEntryCount, periodRangeForFrequency } from '@/lib/recurringEntries';
 import { toDisplayError, withAuthRetry } from '@/lib/errors';
 
-// ---- Section order (DECISIONS.md D-024) ----
+// ---- Section order (DECISIONS.md D-024, 'undated' added by D-029) ----
 
-type SectionKey = 'habits' | 'overdue' | 'today' | 'upcoming';
+type SectionKey = 'habits' | 'overdue' | 'today' | 'undated' | 'upcoming';
 
-const DEFAULT_SECTION_ORDER: SectionKey[] = ['habits', 'overdue', 'today', 'upcoming'];
+const DEFAULT_SECTION_ORDER: SectionKey[] = ['habits', 'overdue', 'today', 'undated', 'upcoming'];
 const SECTION_LABELS: Record<SectionKey, string> = {
   habits: 'Daily habits',
   overdue: 'Overdue',
   today: 'Today',
+  undated: 'No date',
   upcoming: 'Upcoming',
 };
 const SECTION_ORDER_STORAGE_KEY = 'today-section-order';
@@ -431,6 +432,7 @@ export default function TodayPage() {
   const [completingIds, setCompletingIds] = useState<Set<string>>(new Set());
 
   const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
+  const [undatedTasks, setUndatedTasks] = useState<Task[]>([]);
 
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
@@ -472,12 +474,12 @@ export default function TodayPage() {
         listUpcomingProjects(),
       ]),
     )
-      .then(([overdue, todayDated, flaggedTasks, undatedTasks, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
+      .then(([overdue, todayDated, flaggedTasks, undated, todayEvts, flaggedActions, upTasks, upEvents, upActions, upProjects]) => {
         setOverdueTasks(overdue);
+        setUndatedTasks(undated);
         const todayTaskMap = new Map<string, Task>();
         for (const t of todayDated) todayTaskMap.set(t.id, t);
         for (const t of flaggedTasks) todayTaskMap.set(t.id, t);
-        for (const t of undatedTasks) todayTaskMap.set(t.id, t);
         setTodayTasks(Array.from(todayTaskMap.values()));
         setTodayEvents(todayEvts);
         setTodayFlaggedActions(flaggedActions);
@@ -580,6 +582,7 @@ export default function TodayPage() {
 
   function handleCompleteTask(task: Task) {
     setOverdueTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setUndatedTasks((prev) => prev.filter((t) => t.id !== task.id));
     setTodayTasks((prev) => prev.filter((t) => t.id !== task.id));
     setUpcomingTasks((prev) => prev.filter((t) => t.id !== task.id));
     withCompleting(
@@ -699,6 +702,25 @@ export default function TodayPage() {
               </div>
             </div>
           ))}
+        </section>
+      );
+    }
+
+    if (key === 'undated') {
+      if (undatedTasks.length === 0) return null;
+      return (
+        <section key={key} className="today-section">
+          <SectionHeader label={SECTION_LABELS.undated} count={undatedTasks.length} />
+          <div className="list">
+            {undatedTasks.map((task) => (
+              <TodayRowView
+                key={`task-${task.id}`}
+                item={{ kind: 'task', task }}
+                onCompleteTask={handleCompleteTask}
+                isCompleting={(id) => completingIds.has(id)}
+              />
+            ))}
+          </div>
         </section>
       );
     }

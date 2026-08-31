@@ -6,6 +6,24 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-029 · Undated tasks move out of "Today" into their own "No date" section, reversing D-028's placement (2026-08-31)
+
+**Context:** D-028 (shipped 2026-08-30) folded undated, unflagged tasks into Today's "Today" section, explicitly rejecting a dedicated section for them — reasoning that the tester's own wording ("Can today also show tasks? Especially if they're not dated...") read as wanting them visible *on* Today, not behind a fifth, separately-named place to look. Within 24 hours, the same tester's next feedback row (`tester_feedback` id `bee02c31`, 2026-08-31) asked for the opposite: pull undated tasks back out of "Today" into their own section. Asked directly to clarify, the tester's own framing was: "Today means it happens today, upcoming shows future. Items without a date means it isn't prioritised, or could be overdue. Action would be in user to assign date. The section could be undated/no date." (An "Overdue" section was also requested in that reply — already existing since D-024, so no action needed there; the tester wasn't aware it already shipped.)
+This is a single-user app — the tester and the person setting product direction are the same account — so there's no larger population to wait on for more signal; a second, clarified ask from that one user supersedes their own first read, meeting D-002's "revisit once real usage complains" bar without needing more data points.
+
+**Decision:**
+- **New `SectionKey`, `'undated'`**, labeled "No date", inserted into `DEFAULT_SECTION_ORDER` right after `'today'`: `['habits', 'overdue', 'today', 'undated', 'upcoming']`. Old 4-key stored orders in `localStorage` (`today-section-order`) fail the existing exact-length/key-set validation in `loadStoredSectionOrder()` and fall back to the new 5-key default automatically — no migration code needed, matching the self-healing behavior `sort_order` fields already rely on elsewhere in this schema.
+- **`reloadToday()`'s task union reverts to D-024's original shape** — `date = today` OR `flagged_today = true` only. `getUndatedTasks()`'s result no longer merges into that union; it now populates its own `undatedTasks` state feeding the new section.
+- **"No date" renders with the same `TodayRowView` task row** used by "Today" and "Upcoming" (checkbox completes on tap, `tag` shown if set) — no new interaction model, no inline "assign a date" affordance in this pass (the tester's own framing puts that action on them, not the UI, for now). `handleCompleteTask()` gains `undatedTasks` to its optimistic-remove/rollback set, same pattern as `overdueTasks`/`todayTasks`/`upcomingTasks`.
+- **Section hides when empty**, same as Overdue/Today/Upcoming — not always-rendered like Daily habits.
+- **Supersedes D-028's "Rejected: a dedicated new section" bullet only** — D-028's core union-and-dedupe mechanism (still used for Today's `date = today` + flagged union), its rejection of a manual "shown on Today" stored flag, and every other section's behavior are unchanged.
+
+**Rationale:** Matches the tester's stated mental model more precisely than folding everything into Today did: "Today" = happens today, "Undated" = not yet prioritized (a nudge to assign a date, not a permanent home), "Upcoming" = already dated, future. Reusing the existing row component and the existing generic section-render loop keeps this a placement change, not a new pattern.
+
+**Status:** Active. No schema change. Not yet verified on device.
+
+---
+
 ## D-028 · Today's "Today" section also includes undated, unflagged tasks (2026-08-30)
 
 **Context:** Second tester-feedback row (2026-08-29, BACKLOG.md Active #16): "Can today also show tasks? Especially if they're not dated, it is shown until marked complete." Investigation confirmed the gap in code, not a misconfiguration (unlike the counter-tracking report from the same feedback session, which turned out to be a plain untracked recurring item — no DECISIONS.md entry needed there): `src/app/page.tsx`'s `reloadToday()` builds the Today section's task list as the union of `date = today` (`getTasksForDateRange(today, today)`) and `flagged_today = true` (`listFlaggedTasks()`) — a task with no date and no flag has zero presence anywhere on the Today page. It only ever shows on the plain `/tasks` list, which applies no date filter at all and so shows it indefinitely until done — correct, expected behavior for that list, just invisible from the page whose whole premise (D-011) is "everything relevant in one place."
