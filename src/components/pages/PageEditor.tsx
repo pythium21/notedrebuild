@@ -387,6 +387,9 @@ export function PageEditor({
 
   return (
     <div className="page-editor" ref={editorRef}>
+      <button type="button" className="breadcrumb__back" onClick={() => router.back()}>
+        ← Back
+      </button>
       <nav className="breadcrumb">
         <Link href="/pages" className="breadcrumb__link">
           Notes

@@ -6,6 +6,18 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 ---
 
+## D-031 · Notes editor gains a "← Back" button using browser history (2026-08-31)
+
+**Context:** Tester feedback (2026-08-31, page_route `/pages/<id>`) reported after testing D-030 Phase 1's new "Link to page" feature: "I should be able to back to the previous page. I can't see the hierarchy, I was able to see in the previous page." The app is an installed standalone PWA (`display: standalone`) with no browser chrome — no visible URL bar, no visible back button — so after following a `page_link` to an unrelated part of the page tree, there was no in-app affordance to return to wherever the tester had been, only the existing breadcrumb's "Notes" link (jumps to the root index, not back to the specific prior page).
+
+**Decision:** Add a "← Back" button (`src/components/pages/PageEditor.tsx`, above the existing breadcrumb nav) calling `router.back()` (`next/navigation`'s `useRouter`, already imported and used for `router.push()` elsewhere in this component). Every page-to-page navigation in this editor (`<Link>` clicks, `router.push()` on sub-page/sibling creation) already pushes a normal history entry, so `router.back()` returns to literally whatever the tester was looking at — including, if it was another page, that page's own breadcrumb/hierarchy context — without needing to track or reconstruct a separate navigation stack.
+
+**Rationale:** Reuses the browser's own history stack instead of building a custom "recently visited" mechanism — the standalone-PWA gap is the *visible affordance*, not the underlying navigation capability, which already worked correctly via `<Link>`. Kept as a separate button rather than folded into the breadcrumb `<nav>` itself, since "go back to where I was" (navigation history) and "where does this page sit in the tree" (hierarchy) are different questions that happened to get conflated in the same feedback report — the breadcrumb still answers the second one unchanged.
+
+**Status:** Active. No schema change, `tsc`/`build` clean. Not yet verified on device — BACKLOG.md.
+
+---
+
 ## D-030 · Notebooks: separate `notebooks` table, existing pages reset (not migrated), block-level links only (2026-08-31)
 
 **Context:** Requested a OneNote-style Notebooks feature — notebook containers holding pages, with parent/child nesting (already supported via `pages.parent_id`, D-012) and the ability to link to any *existing* page within (and across) a notebook, not just auto-created sub-pages. Scoped in `NOTEBOOKS-SCOPE.md` (written 2026-08-28, revised 2026-08-31 to settle its own open questions) before any code — this entry is the ruling CLAUDE.md's update discipline requires before implementation starts.

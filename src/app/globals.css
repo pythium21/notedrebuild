@@ -1359,6 +1359,22 @@ textarea.block--text {
 
 /* ---- Breadcrumb trail + dropdown (desktop dropdown / mobile bottom sheet) ---- */
 
+.breadcrumb__back {
+  display: block;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-bottom: 0.35rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.breadcrumb__back:hover {
+  color: var(--text);
+}
+
 .breadcrumb {
   display: flex;
   flex-wrap: wrap;
