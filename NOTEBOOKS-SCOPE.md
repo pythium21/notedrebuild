@@ -4,10 +4,11 @@ Scoping notes for a **Notebooks** feature on top of the existing Pages/Notes sys
 OneNote-style notebook container with parent/child page nesting and the ability to link to
 other pages within (and across) a notebook.
 
-Status: **architecture decided, nothing built.** Ruled on in DECISIONS.md D-030
+Status: **Phase 1 built, Phase 2/3 not started.** Ruled on in DECISIONS.md D-030
 (2026-08-31) — this document is the pre-decision analysis D-030 was based on; treat it as
 supporting detail, not the source of truth, if the two ever disagree (D-030 wins per
-CLAUDE.md's conflict rules). Written 2026-08-28, revised 2026-08-31.
+CLAUDE.md's conflict rules). Written 2026-08-28, revised 2026-08-31; Phase 1 shipped
+2026-08-31 (BACKLOG.md Active #18).
 
 ### Scope assumptions
 
@@ -299,9 +300,11 @@ Also:
 
 ## 8. Phasing
 
-### Phase 1 — "Link to existing page"
+### Phase 1 — "Link to existing page" — ✅ shipped 2026-08-31
 No schema change, no migration. Add the block-menu option, wire `Picker` over the page
-list, insert a `page_link` block. Independently shippable and immediately useful.
+list, insert a `page_link` block. Independently shippable and immediately useful. Built as
+`src/components/pages/BlockMenu.tsx`'s "Link to page" option +
+`PageEditor.tsx`'s `handleLinkPageSelect()`; not yet verified on device (BACKLOG.md Active #18).
 
 ### Phase 2 — Notebooks entity
 - `notebooks` table + `pages.notebook_id` (NOT NULL) + owner-scoped RLS. Reset existing
