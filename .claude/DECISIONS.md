@@ -32,7 +32,7 @@ Decision numbers restart at D-001 in this repo. The retired vanilla repo's DECIS
 
 **Rationale:** Reset-not-migrate removes the riskiest part of the original plan (a one-shot backfill script touching every existing row) for negligible cost, since there's genuinely nothing worth preserving yet. Cascade+confirm over a service-role handler keeps the delete path inside the pattern every other destructive action in this app already uses, instead of opening a third narrowly-scoped server route for a case the database's own FK semantics already cover safely. Deferring inline wikilinks keeps this feature additive to a plain-text editor that currently works, rather than bundling in a rewrite that would need its own decision and its own stability risk.
 
-**Status:** Active — architecture decided, nothing built yet. Phase 1 has no schema dependency and can start independently; Phase 2's schema change is not yet applied. Tracked in BACKLOG.md.
+**Status:** Active. Phase 1 ("Link to existing page") shipped 2026-08-31 — `tsc`/`build` clean, no schema change; not yet verified on device (BACKLOG.md Active #18). Phase 2's schema change (the `notebooks` table itself) is not yet applied — tracked in BACKLOG.md Horizon.
 
 ---
 

@@ -15,6 +15,7 @@ import {
   type Page,
 } from '@/lib/pages';
 import { BreadcrumbMenu } from '@/components/BreadcrumbMenu';
+import { Picker } from '@/components/Picker';
 import { BlockMenu, type BlockOptionType } from './BlockMenu';
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -59,6 +60,9 @@ export function PageEditor({
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [menu, setMenu] = useState<{ blockId: string; mode: 'convert' | 'insert-after' } | null>(null);
+  const [linkPickerAnchor, setLinkPickerAnchor] = useState<{ blockId: string; mode: 'convert' | 'insert-after' } | null>(
+    null,
+  );
   const [creatingSubPage, setCreatingSubPage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [breadcrumbOpen, setBreadcrumbOpen] = useState(false);
@@ -268,6 +272,12 @@ export function PageEditor({
       return;
     }
 
+    if (type === 'link-page') {
+      setLinkPickerAnchor({ blockId, mode });
+      setMenu(null);
+      return;
+    }
+
     if (mode === 'convert') {
       commitBlocks(
         blocks.map((b) =>
@@ -280,6 +290,25 @@ export function PageEditor({
       commitBlocks([...blocks.slice(0, idx + 1), fresh, ...blocks.slice(idx + 1)]);
     }
     setMenu(null);
+  }
+
+  // Insert a page_link block pointing at an existing page (DECISIONS.md D-030
+  // Phase 1) — unlike handleCreateSubPage, this writes no other row and creates
+  // no new page, so it's a plain commitBlocks + scheduleSave with no D-012
+  // flush-before-write ordering concern.
+  function handleLinkPageSelect(target: Page) {
+    if (!linkPickerAnchor) return;
+    const { blockId, mode } = linkPickerAnchor;
+    const linkBlock: Block = { id: newBlockId(), type: 'page_link', pageId: target.id };
+    const newBlocks =
+      mode === 'convert'
+        ? blocks.map((b) => (b.id === blockId ? linkBlock : b))
+        : (() => {
+            const idx = blocks.findIndex((b) => b.id === blockId);
+            return [...blocks.slice(0, idx + 1), linkBlock, ...blocks.slice(idx + 1)];
+          })();
+    commitBlocks(newBlocks);
+    setLinkPickerAnchor(null);
   }
 
   async function handleCreateSubPage(anchorId: string, mode: 'convert' | 'insert-after') {
@@ -518,6 +547,18 @@ export function PageEditor({
           </div>
         ))}
       </div>
+
+      {linkPickerAnchor && (
+        <Picker
+          title="Link to page"
+          items={allPages.filter((p) => p.id !== pageId)}
+          getKey={(p) => p.id}
+          getLabel={(p) => `${p.emoji ? `${p.emoji} ` : ''}${p.title}`}
+          onSelect={handleLinkPageSelect}
+          onClose={() => setLinkPickerAnchor(null)}
+          emptyLabel="No other pages yet."
+        />
+      )}
     </div>
   );
 }

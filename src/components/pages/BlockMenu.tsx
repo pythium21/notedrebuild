@@ -1,6 +1,6 @@
 import type { BlockType } from '@/lib/pages';
 
-export type BlockOptionType = BlockType | 'sub-page';
+export type BlockOptionType = BlockType | 'sub-page' | 'link-page';
 
 export const BLOCK_OPTIONS: { type: BlockOptionType; label: string; icon: string }[] = [
   { type: 'text', label: 'Text', icon: '📝' },
@@ -8,6 +8,7 @@ export const BLOCK_OPTIONS: { type: BlockOptionType; label: string; icon: string
   { type: 'checklist', label: 'Checklist', icon: '☑️' },
   { type: 'bullet', label: 'Bullet', icon: '•' },
   { type: 'sub-page', label: 'Sub-page', icon: '📄' },
+  { type: 'link-page', label: 'Link to page', icon: '🔗' },
 ];
 
 export function BlockMenu({
